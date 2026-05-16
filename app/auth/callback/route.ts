@@ -75,8 +75,7 @@ export async function GET(req: NextRequest) {
     loginUrl.searchParams.set('error', 'Link inválido ou expirado. Faça login novamente.');
     return NextResponse.redirect(loginUrl);
   }
-
-  // Sessão criada com sucesso → redireciona para o dashboard
-  // Os cookies de sessão já foram definidos pelo setAll acima
+  // Sessao criada com sucesso - redireciona para o dashboard
+  // Os cookies de sessao ja foram definidos pelo setAll acima
   return supabaseResponse;
 }

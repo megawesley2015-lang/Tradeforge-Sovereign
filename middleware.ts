@@ -126,9 +126,9 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // Aplica o middleware em TODAS as rotas exceto assets estáticos
-  // O filtro fino é feito dentro da função acima
+  // Aplica o middleware em TODAS as rotas exceto assets estaticos
+  // O filtro fino e feito dentro d
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };

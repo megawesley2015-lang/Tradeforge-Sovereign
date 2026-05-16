@@ -366,10 +366,9 @@ export async function POST(req: NextRequest) {
       balanceCurve: balanceCurve.slice(0, 300),
       recentTrades: tradeLog.slice(-20),
     });
-
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Erro desconhecido';
-    console.error('[Backtest v5]', err);
+    const message = err instanceof Error ? err.message : 'Erro interno no backtest';
+    console.error('[Backtest] Erro:', message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

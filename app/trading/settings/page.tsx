@@ -33,7 +33,7 @@ export default function SettingsPage() {
 
   // ML
   const [mlTraining,  setMlTraining]  = useState(false);
-  const [mlResult,    setMlResult]    = useState<{ samples?: number; accuracy?: number; message?: string; error?: string } | null>(null);
+  const [mlResult,    setMlResult]    = useState<{ samples?: number; accuracy?: number; message?: string; error?: string; success?: boolean } | null>(null);
   const [mlStatus,    setMlStatus]    = useState<{ ready?: boolean; trainedOn?: number; accuracy?: number; message?: string } | null>(null);
 
   const supabase = getSupabaseBrowserClient();
