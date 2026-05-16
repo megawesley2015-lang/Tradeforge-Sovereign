@@ -1,0 +1,1325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Eval Review</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600&family=Lora:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js" integrity="sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT" crossorigin="anonymous"></script>
+  <style>
+    :root {
+      --bg: #faf9f5;
+      --surface: #ffffff;
+      --border: #e8e6dc;
+      --text: #141413;
+      --text-muted: #b0aea5;
+      --accent: #d97757;
+      --accent-hover: #c4613f;
+      --green: #788c5d;
+      --green-bg: #eef2e8;
+      --red: #c44;
+      --red-bg: #fceaea;
+      --header-bg: #141413;
+      --header-text: #faf9f5;
+      --radius: 6px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Lora', Georgia, serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ---- Header ---- */
+    .header {
+      background: var(--header-bg);
+      color: var(--header-text);
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .header h1 {
+      font-family: 'Poppins', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+    .header .instructions {
+      font-size: 0.8rem;
+      opacity: 0.7;
+      margin-top: 0.25rem;
+    }
+    .header .progress {
+      font-size: 0.875rem;
+      opacity: 0.8;
+      text-align: right;
+    }
+
+    /* ---- Main content ---- */
+    .main {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.5rem 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    /* ---- Sections ---- */
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      flex-shrink: 0;
+    }
+    .section-header {
+      font-family: 'Poppins', sans-serif;
+      padding: 0.75rem 1rem;
+      font-size: 0.75rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+    }
+    .section-body {
+      padding: 1rem;
+    }
+
+    /* ---- Config badge ---- */
+    .config-badge {
+      display: inline-block;
+      padding: 0.2rem 0.625rem;
+      border-radius: 9999px;
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-left: 0.75rem;
+      vertical-align: middle;
+    }
+    .config-badge.config-primary {
+      background: rgba(33, 150, 243, 0.12);
+      color: #1976d2;
+    }
+    .config-badge.config-baseline {
+      background: rgba(255, 193, 7, 0.15);
+      color: #f57f17;
+    }
+
+    /* ---- Prompt ---- */
+    .prompt-text {
+      white-space: pre-wrap;
+      font-size: 0.9375rem;
+      line-height: 1.6;
+    }
+
+    /* ---- Outputs ---- */
+    .output-file {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .output-file + .output-file {
+      margin-top: 1rem;
+    }
+    .output-file-header {
+      padding: 0.5rem 0.75rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      font-family: 'SF Mono', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .output-file-header .dl-btn {
+      font-size: 0.7rem;
+      color: var(--accent);
+      text-decoration: none;
+      cursor: pointer;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-weight: 500;
+      opacity: 0.8;
+    }
+    .output-file-header .dl-btn:hover {
+      opacity: 1;
+      text-decoration: underline;
+    }
+    .output-file-content {
+      padding: 0.75rem;
+      overflow-x: auto;
+    }
+    .output-file-content pre {
+      font-size: 0.8125rem;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: 'SF Mono', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+    }
+    .output-file-content img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 4px;
+    }
+    .output-file-content iframe {
+      width: 100%;
+      height: 600px;
+      border: none;
+    }
+    .output-file-content table {
+      border-collapse: collapse;
+      font-size: 0.8125rem;
+      width: 100%;
+    }
+    .output-file-content table td,
+    .output-file-content table th {
+      border: 1px solid var(--border);
+      padding: 0.375rem 0.5rem;
+      text-align: left;
+    }
+    .output-file-content table th {
+      background: var(--bg);
+      font-weight: 600;
+    }
+    .output-file-content .download-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.875rem;
+      cursor: pointer;
+    }
+    .output-file-content .download-link:hover {
+      background: var(--border);
+    }
+    .empty-state {
+      color: var(--text-muted);
+      font-style: italic;
+      padding: 2rem;
+      text-align: center;
+    }
+
+    /* ---- Feedback ---- */
+    .prev-feedback {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.625rem 0.75rem;
+      margin-top: 0.75rem;
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+    .prev-feedback-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 0.25rem;
+      color: var(--text-muted);
+    }
+    .feedback-textarea {
+      width: 100%;
+      min-height: 100px;
+      padding: 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 0.9375rem;
+      line-height: 1.5;
+      resize: vertical;
+      color: var(--text);
+    }
+    .feedback-textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+    .feedback-status {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 0.5rem;
+      min-height: 1.1em;
+    }
+
+    /* ---- Grades (collapsible) ---- */
+    .grades-toggle {
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+    }
+    .grades-toggle:hover {
+      color: var(--accent);
+    }
+    .grades-toggle .arrow {
+      margin-right: 0.5rem;
+      transition: transform 0.15s;
+      font-size: 0.75rem;
+    }
+    .grades-toggle .arrow.open {
+      transform: rotate(90deg);
+    }
+    .grades-content {
+      display: none;
+      margin-top: 0.75rem;
+    }
+    .grades-content.open {
+      display: block;
+    }
+    .grades-summary {
+      font-size: 0.875rem;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .grade-badge {
+      display: inline-block;
+      padding: 0.125rem 0.5rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .grade-pass { background: var(--green-bg); color: var(--green); }
+    .grade-fail { background: var(--red-bg); color: var(--red); }
+    .assertion-list {
+      list-style: none;
+    }
+    .assertion-item {
+      padding: 0.625rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.8125rem;
+    }
+    .assertion-item:last-child { border-bottom: none; }
+    .assertion-status {
+      font-weight: 600;
+      margin-right: 0.5rem;
+    }
+    .assertion-status.pass { color: var(--green); }
+    .assertion-status.fail { color: var(--red); }
+    .assertion-evidence {
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      margin-top: 0.25rem;
+      padding-left: 1.5rem;
+    }
+
+    /* ---- View tabs ---- */
+    .view-tabs {
+      display: flex;
+      gap: 0;
+      padding: 0 2rem;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .view-tab {
+      font-family: 'Poppins', sans-serif;
+      padding: 0.625rem 1.25rem;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      background: none;
+      color: var(--text-muted);
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+    }
+    .view-tab:hover { color: var(--text); }
+    .view-tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+    .view-panel { display: none; }
+    .view-panel.active { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+
+    /* ---- Benchmark view ---- */
+    .benchmark-view {
+      padding: 1.5rem 2rem;
+      overflow-y: auto;
+      flex: 1;
+    }
+    .benchmark-table {
+      border-collapse: collapse;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 0.8125rem;
+      width: 100%;
+      margin-bottom: 1.5rem;
+    }
+    .benchmark-table th, .benchmark-table td {
+      padding: 0.625rem 0.75rem;
+      text-align: left;
+      border: 1px solid var(--border);
+    }
+    .benchmark-table th {
+      font-family: 'Poppins', sans-serif;
+      background: var(--header-bg);
+      color: var(--header-text);
+      font-weight: 500;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .benchmark-table tr:hover { background: var(--bg); }
+    .benchmark-table tr.benchmark-row-with { background: rgba(33, 150, 243, 0.06); }
+    .benchmark-table tr.benchmark-row-without { background: rgba(255, 193, 7, 0.06); }
+    .benchmark-table tr.benchmark-row-with:hover { background: rgba(33, 150, 243, 0.12); }
+    .benchmark-table tr.benchmark-row-without:hover { background: rgba(255, 193, 7, 0.12); }
+    .benchmark-table tr.benchmark-row-avg { font-weight: 600; border-top: 2px solid var(--border); }
+    .benchmark-table tr.benchmark-row-avg.benchmark-row-with { background: rgba(33, 150, 243, 0.12); }
+    .benchmark-table tr.benchmark-row-avg.benchmark-row-without { background: rgba(255, 193, 7, 0.12); }
+    .benchmark-delta-positive { color: var(--green); font-weight: 600; }
+    .benchmark-delta-negative { color: var(--red); font-weight: 600; }
+    .benchmark-notes {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem;
+    }
+    .benchmark-notes h3 {
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.875rem;
+      margin-bottom: 0.75rem;
+    }
+    .benchmark-notes ul {
+      list-style: disc;
+      padding-left: 1.25rem;
+    }
+    .benchmark-notes li {
+      font-size: 0.8125rem;
+      line-height: 1.6;
+      margin-bottom: 0.375rem;
+    }
+    .benchmark-empty {
+      color: var(--text-muted);
+      font-style: italic;
+      text-align: center;
+      padding: 3rem;
+    }
+
+    /* ---- Navigation ---- */
+    .nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 2rem;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+    .nav-btn {
+      font-family: 'Poppins', sans-serif;
+      padding: 0.5rem 1.25rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      cursor: pointer;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--text);
+      transition: all 0.15s;
+    }
+    .nav-btn:hover:not(:disabled) {
+      background: var(--bg);
+      border-color: var(--text-muted);
+    }
+    .nav-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .done-btn {
+      font-family: 'Poppins', sans-serif;
+      padding: 0.5rem 1.5rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 0.875rem;
+      font-weight: 500;
+      transition: all 0.15s;
+    }
+    .done-btn:hover {
+      background: var(--bg);
+      border-color: var(--text-muted);
+    }
+    .done-btn.ready {
+      border: none;
+      background: var(--accent);
+      color: white;
+      font-weight: 600;
+    }
+    .done-btn.ready:hover {
+      background: var(--accent-hover);
+    }
+    /* ---- Done overlay ---- */
+    .done-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 100;
+      justify-content: center;
+      align-items: center;
+    }
+    .done-overlay.visible {
+      display: flex;
+    }
+    .done-card {
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 2rem 3rem;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      max-width: 500px;
+    }
+    .done-card h2 {
+      font-size: 1.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .done-card p {
+      color: var(--text-muted);
+      margin-bottom: 1.5rem;
+      line-height: 1.5;
+    }
+    .done-card .btn-row {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: center;
+    }
+    .done-card button {
+      padding: 0.5rem 1.25rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      cursor: pointer;
+      font-size: 0.875rem;
+    }
+    .done-card button:hover {
+      background: var(--bg);
+    }
+    /* ---- Toast ---- */
+    .toast {
+      position: fixed;
+      bottom: 5rem;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--header-bg);
+      color: var(--header-text);
+      padding: 0.625rem 1.25rem;
+      border-radius: var(--radius);
+      font-size: 0.875rem;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+      z-index: 200;
+    }
+    .toast.visible {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+  <div id="app" style="height:100vh; display:flex; flex-direction:column;">
+    <div class="header">
+      <div>
+        <h1>Eval Review: <span id="skill-name"></span></h1>
+        <div class="instructions">Review each output and leave feedback below. Navigate with arrow keys or buttons. When done, copy feedback and paste into Claude Code.</div>
+      </div>
+      <div class="progress" id="progress"></div>
+    </div>
+
+    <!-- View tabs (only shown when benchmark data exists) -->
+    <div class="view-tabs" id="view-tabs" style="display:none;">
+      <button class="view-tab active" onclick="switchView('outputs')">Outputs</button>
+      <button class="view-tab" onclick="switchView('benchmark')">Benchmark</button>
+    </div>
+
+    <!-- Outputs panel (qualitative review) -->
+    <div class="view-panel active" id="panel-outputs">
+    <div class="main">
+      <!-- Prompt -->
+      <div class="section">
+        <div class="section-header">Prompt <span class="config-badge" id="config-badge" style="display:none;"></span></div>
+        <div class="section-body">
+          <div class="prompt-text" id="prompt-text"></div>
+        </div>
+      </div>
+
+      <!-- Outputs -->
+      <div class="section">
+        <div class="section-header">Output</div>
+        <div class="section-body" id="outputs-body">
+          <div class="empty-state">No output files found</div>
+        </div>
+      </div>
+
+      <!-- Previous Output (collapsible) -->
+      <div class="section" id="prev-outputs-section" style="display:none;">
+        <div class="section-header">
+          <div class="grades-toggle" onclick="togglePrevOutputs()">
+            <span class="arrow" id="prev-outputs-arrow">&#9654;</span>
+            Previous Output
+          </div>
+        </div>
+        <div class="grades-content" id="prev-outputs-content"></div>
+      </div>
+
+      <!-- Grades (collapsible) -->
+      <div class="section" id="grades-section" style="display:none;">
+        <div class="section-header">
+          <div class="grades-toggle" onclick="toggleGrades()">
+            <span class="arrow" id="grades-arrow">&#9654;</span>
+            Formal Grades
+          </div>
+        </div>
+        <div class="grades-content" id="grades-content"></div>
+      </div>
+
+      <!-- Feedback -->
+      <div class="section">
+        <div class="section-header">Your Feedback</div>
+        <div class="section-body">
+          <textarea
+            class="feedback-textarea"
+            id="feedback"
+            placeholder="What do you think of this output? Any issues, suggestions, or things that look great?"
+          ></textarea>
+          <div class="feedback-status" id="feedback-status"></div>
+          <div class="prev-feedback" id="prev-feedback" style="display:none;">
+            <div class="prev-feedback-label">Previous feedback</div>
+            <div id="prev-feedback-text"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="nav" id="outputs-nav">
+      <button class="nav-btn" id="prev-btn" onclick="navigate(-1)">&#8592; Previous</button>
+      <button class="done-btn" id="done-btn" onclick="showDoneDialog()">Submit All Reviews</button>
+      <button class="nav-btn" id="next-btn" onclick="navigate(1)">Next &#8594;</button>
+    </div>
+    </div><!-- end panel-outputs -->
+
+    <!-- Benchmark panel (quantitative stats) -->
+    <div class="view-panel" id="panel-benchmark">
+      <div class="benchmark-view" id="benchmark-content">
+        <div class="benchmark-empty">No benchmark data available. Run a benchmark to see quantitative results here.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Done overlay -->
+  <div class="done-overlay" id="done-overlay">
+    <div class="done-card">
+      <h2>Review Complete</h2>
+      <p>Your feedback has been saved. Go back to your Claude Code session and tell Claude you're done reviewing.</p>
+      <div class="btn-row">
+        <button onclick="closeDoneDialog()">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ---- Embedded data (injected by generate_review.py) ----
+    const EMBEDDED_DATA = {"skill_name": "frontend-design", "runs": [{"id": "eval-0-metrik-hero-with_skill", "prompt": "(No prompt found)", "eval_id": null, "outputs": [{"name": "output.html", "type": "text", "content": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n<title>Metrik \u2014 Campaign Analytics</title>\n<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">\n<link href=\"https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;700&display=swap\" rel=\"stylesheet\">\n<style>\n  :root {\n    --bg:          #0A0A0F;\n    --surface:     #13131C;\n    --border:      #1E1E2E;\n    --primary:     #00E5A0;\n    --accent:      #FF6B35;\n    --text:        #F0F0F8;\n    --text-muted:  #6B6B8A;\n    --mono:        'DM Mono', monospace;\n    --sans:        'DM Sans', sans-serif;\n    --radius:      4px;\n    --unit:        8px;\n  }\n\n  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }\n\n  body {\n    background: var(--bg);\n    color: var(--text);\n    font-family: var(--sans);\n    font-size: 13px;\n    line-height: 1.6;\n    min-height: 100vh;\n  }\n\n  /* NAV */\n  nav {\n    display: flex;\n    align-items: center;\n    justify-content: space-between;\n    padding: 24px 48px;\n    border-bottom: 1px solid var(--border);\n  }\n\n  .nav-logo {\n    font-family: var(--mono);\n    font-size: 15px;\n    font-weight: 500;\n    color: var(--text);\n    letter-spacing: -0.02em;\n  }\n\n  .nav-logo span {\n    color: var(--primary);\n  }\n\n  .nav-links {\n    display: flex;\n    gap: 32px;\n    list-style: none;\n  }\n\n  .nav-links a {\n    font-family: var(--mono);\n    font-size: 11px;\n    letter-spacing: 0.08em;\n    text-transform: uppercase;\n    color: var(--text-muted);\n    text-decoration: none;\n    transition: color 0.15s;\n  }\n\n  .nav-links a:hover { color: var(--text); }\n\n  .nav-cta {\n    font-family: var(--mono);\n    font-size: 11px;\n    letter-spacing: 0.05em;\n    text-transform: uppercase;\n    color: var(--bg);\n    background: var(--primary);\n    border: none;\n    padding: 8px 20px;\n    border-radius: var(--radius);\n    cursor: pointer;\n    transition: opacity 0.15s;\n  }\n\n  .nav-cta:hover { opacity: 0.85; }\n\n  /* HERO \u2014 asymmetric, left-aligned, grid structure visible */\n  .hero {\n    display: grid;\n    grid-template-columns: 1fr 1fr;\n    min-height: calc(100vh - 73px);\n    border-bottom: 1px solid var(--border);\n  }\n\n  .hero-left {\n    padding: 80px 48px 80px 48px;\n    border-right: 1px solid var(--border);\n    display: flex;\n    flex-direction: column;\n    justify-content: space-between;\n  }\n\n  .hero-eyebrow {\n    display: flex;\n    align-items: center;\n    gap: 12px;\n    margin-bottom: 56px;\n  }\n\n  .eyebrow-label {\n    font-family: var(--mono);\n    font-size: 10px;\n    letter-spacing: 0.12em;\n    text-transform: uppercase;\n    color: var(--text-muted);\n  }\n\n  .eyebrow-badge {\n    font-family: var(--mono);\n    font-size: 10px;\n    color: var(--primary);\n    border: 1px solid var(--primary);\n    padding: 2px 8px;\n    border-radius: 2px;\n    letter-spacing: 0.06em;\n  }\n\n  .hero-headline {\n    font-family: var(--sans);\n    font-size: 56px;\n    font-weight: 700;\n    line-height: 1.0;\n    letter-spacing: -0.03em;\n    color: var(--text);\n    margin-bottom: 32px;\n    max-width: 520px;\n  }\n\n  .hero-headline em {\n    font-style: normal;\n    color: var(--primary);\n  }\n\n  .hero-sub {\n    font-family: var(--sans);\n    font-size: 16px;\n    font-weight: 300;\n    color: var(--text-muted);\n    line-height: 1.65;\n    max-width: 400px;\n    margin-bottom: 48px;\n  }\n\n  .hero-actions {\n    display: flex;\n    align-items: center;\n    gap: 24px;\n  }\n\n  .btn-primary {\n    font-family: var(--mono);\n    font-size: 12px;\n    letter-spacing: 0.06em;\n    text-transform: uppercase;\n    color: var(--bg);\n    background: var(--primary);\n    border: none;\n    padding: 14px 32px;\n    border-radius: var(--radius);\n    cursor: pointer;\n    transition: opacity 0.15s;\n  }\n\n  .btn-primary:hover { opacity: 0.85; }\n\n  .btn-ghost {\n    font-family: var(--mono);\n    font-size: 11px;\n    letter-spacing: 0.06em;\n    text-transform: uppercase;\n    color: var(--text-muted);\n    background: none;\n    border: 1px solid var(--border);\n    padding: 13px 24px;\n    border-radius: var(--radius);\n    cursor: pointer;\n    transition: border-color 0.15s, color 0.15s;\n  }\n\n  .btn-ghost:hover { border-color: var(--text-muted); color: var(--text); }\n\n  .hero-meta {\n    display: flex;\n    gap: 32px;\n    padding-top: 48px;\n    border-top: 1px solid var(--border);\n  }\n\n  .meta-item {\n    display: flex;\n    flex-direction: column;\n    gap: 4px;\n  }\n\n  .meta-value {\n    font-family: var(--mono);\n    font-size: 24px;\n    font-weight: 500;\n    color: var(--text);\n    letter-spacing: -0.02em;\n  }\n\n  .meta-label {\n    font-family: var(--mono);\n    font-size: 10px;\n    letter-spacing: 0.10em;\n    text-transform: uppercase;\n    color: var(--text-muted);\n  }\n\n  /* HERO RIGHT \u2014 dashboard preview */\n  .hero-right {\n    background: var(--surface);\n    padding: 48px;\n    display: flex;\n    flex-direction: column;\n    gap: 16px;\n    overflow: hidden;\n    position: relative;\n  }\n\n  .panel-header {\n    display: flex;\n    align-items: center;\n    justify-content: space-between;\n    padding-bottom: 16px;\n    border-bottom: 1px solid var(--border);\n  }\n\n  .panel-title {\n    font-family: var(--mono);\n    font-size: 11px;\n    letter-spacing: 0.08em;\n    text-transform: uppercase;\n    color: var(--text-muted);\n  }\n\n  .panel-live {\n    display: flex;\n    align-items: center;\n    gap: 6px;\n    font-family: var(--mono);\n    font-size: 10px;\n    color: var(--primary);\n    letter-spacing: 0.06em;\n  }\n\n  .live-dot {\n    width: 6px;\n    height: 6px;\n    border-radius: 50%;\n    background: var(--primary);\n    animation: pulse 2s infinite;\n  }\n\n  @keyframes pulse {\n    0%, 100% { opacity: 1; }\n    50% { opacity: 0.3; }\n  }\n\n  /* METRIC ROWS */\n  .metric-row {\n    display: grid;\n    grid-template-columns: 1fr 80px 80px;\n    align-items: center;\n    padding: 14px 0;\n    border-bottom: 1px solid var(--border);\n    gap: 16px;\n  }\n\n  .metric-row:last-of-type { border-bottom: none; }\n\n  .metric-channel {\n    display: flex;\n    flex-direction: column;\n    gap: 6px;\n  }\n\n  .channel-name {\n    font-family: var(--sans);\n    font-size: 13px;\n    font-weight: 500;\n    color: var(--text);\n  }\n\n  .channel-bar-wrap {\n    height: 3px;\n    background: var(--border);\n    border-radius: 2px;\n    overflow: hidden;\n  }\n\n  .channel-bar {\n    height: 100%;\n    border-radius: 2px;\n    background: var(--primary);\n  }\n\n  .metric-val {\n    font-family: var(--mono);\n    font-size: 13px;\n    color: var(--text);\n    text-align: right;\n  }\n\n  .metric-delta {\n    font-family: var(--mono);\n    font-size: 11px;\n    text-align: right;\n  }\n\n  .delta-up { color: var(--primary); }\n  .delta-down { color: #FF4D6D; }\n\n  /* CHART AREA */\n  .chart-area {\n    background: var(--bg);\n    border: 1px solid var(--border);\n    border-radius: var(--radius);\n    padding: 20px;\n    margin-top: 8px;\n  }\n\n  .chart-title {\n    font-family: var(--mono);\n    font-size: 10px;\n    letter-spacing: 0.10em;\n    text-transform: uppercase;\n    color: var(--text-muted);\n    margin-bottom: 20px;\n  }\n\n  .chart-bars {\n    display: flex;\n    align-items: flex-end;\n    gap: 6px;\n    height: 80px;\n  }\n\n  .chart-bar {\n    flex: 1;\n    border-radius: 2px 2px 0 0;\n    background: var(--border);\n    transition: background 0.2s;\n    position: relative;\n  }\n\n  .chart-bar.active { background: var(--primary); opacity: 0.9; }\n  .chart-bar.accent { background: var(--accent); opacity: 0.7; }\n\n  .chart-xaxis {\n    display: flex;\n    gap: 6px;\n    margin-top: 8px;\n  }\n\n  .chart-xlabel {\n    flex: 1;\n    font-family: var(--mono);\n    font-size: 9px;\n    color: var(--text-muted);\n    text-align: center;\n    letter-spacing: 0.04em;\n  }\n</style>\n</head>\n<body>\n\n<nav>\n  <div class=\"nav-logo\">mtr<span>k</span></div>\n  <ul class=\"nav-links\">\n    <li><a href=\"#\">product</a></li>\n    <li><a href=\"#\">integrations</a></li>\n    <li><a href=\"#\">docs</a></li>\n    <li><a href=\"#\">pricing</a></li>\n  </ul>\n  <button class=\"nav-cta\">Sign in</button>\n</nav>\n\n<section class=\"hero\">\n  <div class=\"hero-left\">\n    <div>\n      <div class=\"hero-eyebrow\">\n        <span class=\"eyebrow-label\">Campaign Analytics</span>\n        <span class=\"eyebrow-badge\">v2.4 \u2014 now with AI attribution</span>\n      </div>\n\n      <h1 class=\"hero-headline\">\n        Every channel.<br>\n        One <em>source</em><br>\n        of truth.\n      </h1>\n\n      <p class=\"hero-sub\">\n        Metrik connects your paid, organic, and owned channels into a single performance view \u2014 so your team stops arguing about numbers and starts making decisions.\n      </p>\n\n      <div class=\"hero-actions\">\n        <button class=\"btn-primary\">Start free trial</button>\n        <button class=\"btn-ghost\">View live demo</button>\n      </div>\n    </div>\n\n    <div class=\"hero-meta\">\n      <div class=\"meta-item\">\n        <span class=\"meta-value\">14ms</span>\n        <span class=\"meta-label\">Avg. query time</span>\n      </div>\n      <div class=\"meta-item\">\n        <span class=\"meta-value\">200+</span>\n        <span class=\"meta-label\">Data connectors</span>\n      </div>\n      <div class=\"meta-item\">\n        <span class=\"meta-value\">99.9%</span>\n        <span class=\"meta-label\">Uptime SLA</span>\n      </div>\n    </div>\n  </div>\n\n  <div class=\"hero-right\">\n    <div class=\"panel-header\">\n      <span class=\"panel-title\">Performance \u2014 last 30 days</span>\n      <span class=\"panel-live\">\n        <span class=\"live-dot\"></span>\n        Live\n      </span>\n    </div>\n\n    <div class=\"metric-row\">\n      <div class=\"metric-channel\">\n        <span class=\"channel-name\">Google Ads</span>\n        <div class=\"channel-bar-wrap\">\n          <div class=\"channel-bar\" style=\"width:82%\"></div>\n        </div>\n      </div>\n      <span class=\"metric-val\">$48,320</span>\n      <span class=\"metric-delta delta-up\">+12.4%</span>\n    </div>\n\n    <div class=\"metric-row\">\n      <div class=\"metric-channel\">\n        <span class=\"channel-name\">Organic Search</span>\n        <div class=\"channel-bar-wrap\">\n          <div class=\"channel-bar\" style=\"width:61%\"></div>\n        </div>\n      </div>\n      <span class=\"metric-val\">$36,100</span>\n      <span class=\"metric-delta delta-up\">+8.1%</span>\n    </div>\n\n    <div class=\"metric-row\">\n      <div class=\"metric-channel\">\n        <span class=\"channel-name\">Meta Ads</span>\n        <div class=\"channel-bar-wrap\">\n          <div class=\"channel-bar\" style=\"width:43%\"></div>\n        </div>\n      </div>\n      <span class=\"metric-val\">$25,440</span>\n      <span class=\"metric-delta delta-down\">-3.2%</span>\n    </div>\n\n    <div class=\"metric-row\">\n      <div class=\"metric-channel\">\n        <span class=\"channel-name\">Email</span>\n        <div class=\"channel-bar-wrap\">\n          <div class=\"channel-bar\" style=\"width:28%\"></div>\n        </div>\n      </div>\n      <span class=\"metric-val\">$16,800</span>\n      <span class=\"metric-delta delta-up\">+21.7%</span>\n    </div>\n\n    <div class=\"chart-area\">\n      <div class=\"chart-title\">Revenue attribution \u2014 by week</div>\n      <div class=\"chart-bars\">\n        <div class=\"chart-bar\" style=\"height:45%\"></div>\n        <div class=\"chart-bar\" style=\"height:58%\"></div>\n        <div class=\"chart-bar\" style=\"height:52%\"></div>\n        <div class=\"chart-bar accent\" style=\"height:70%\"></div>\n        <div class=\"chart-bar\" style=\"height:66%\"></div>\n        <div class=\"chart-bar\" style=\"height:75%\"></div>\n        <div class=\"chart-bar active\" style=\"height:90%\"></div>\n      </div>\n      <div class=\"chart-xaxis\">\n        <span class=\"chart-xlabel\">W1</span>\n        <span class=\"chart-xlabel\">W2</span>\n        <span class=\"chart-xlabel\">W3</span>\n        <span class=\"chart-xlabel\">W4</span>\n        <span class=\"chart-xlabel\">W5</span>\n        <span class=\"chart-xlabel\">W6</span>\n        <span class=\"chart-xlabel\">W7</span>\n      </div>\n    </div>\n  </div>\n</section>\n\n</body>\n</html>\n"}], "grading": null}, {"id": "eval-0-metrik-hero-without_skill", "prompt": "(No prompt found)", "eval_id": null, "outputs": [{"name": "output.html", "type": "text", "content": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n<title>Metrik - Campaign Analytics</title>\n<style>\n  * { margin: 0; padding: 0; box-sizing: border-box; }\n  body { font-family: 'Inter', -apple-system, sans-serif; background: #ffffff; color: #1a1a2e; }\n\n  nav {\n    display: flex; align-items: center; justify-content: space-between;\n    padding: 16px 64px; border-bottom: 1px solid #e5e7eb;\n  }\n  .logo { font-size: 22px; font-weight: 700; color: #6366f1; }\n  .nav-links { display: flex; gap: 32px; }\n  .nav-links a { text-decoration: none; color: #6b7280; font-size: 15px; }\n  .btn-nav { background: #6366f1; color: white; border: none; padding: 10px 24px; border-radius: 8px; font-size: 14px; cursor: pointer; }\n\n  .hero {\n    text-align: center;\n    padding: 96px 24px;\n    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n    color: white;\n  }\n  .hero-badge {\n    display: inline-block; background: rgba(255,255,255,0.2); border-radius: 999px;\n    padding: 6px 16px; font-size: 13px; margin-bottom: 24px;\n  }\n  .hero h1 { font-size: 56px; font-weight: 800; line-height: 1.15; margin-bottom: 24px; }\n  .hero p { font-size: 20px; opacity: 0.85; max-width: 560px; margin: 0 auto 40px; line-height: 1.6; }\n  .hero-buttons { display: flex; gap: 16px; justify-content: center; }\n  .btn-primary { background: white; color: #6366f1; border: none; padding: 16px 32px; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; }\n  .btn-secondary { background: transparent; color: white; border: 2px solid rgba(255,255,255,0.5); padding: 16px 32px; border-radius: 12px; font-size: 16px; cursor: pointer; }\n\n  .stats { display: flex; justify-content: center; gap: 64px; padding: 48px; background: #f9fafb; }\n  .stat-item { text-align: center; }\n  .stat-number { font-size: 36px; font-weight: 700; color: #6366f1; }\n  .stat-label { color: #6b7280; font-size: 14px; margin-top: 4px; }\n\n  .features { padding: 80px 64px; }\n  .features h2 { text-align: center; font-size: 36px; font-weight: 700; margin-bottom: 16px; }\n  .features-sub { text-align: center; color: #6b7280; margin-bottom: 56px; font-size: 18px; }\n  .features-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; }\n  .feature-card {\n    background: white; border-radius: 12px; padding: 32px;\n    box-shadow: 0 4px 24px rgba(0,0,0,0.08); transition: transform 0.2s;\n  }\n  .feature-card:hover { transform: scale(1.02); }\n  .feature-icon { font-size: 32px; margin-bottom: 16px; }\n  .feature-card h3 { font-size: 18px; font-weight: 600; margin-bottom: 8px; }\n  .feature-card p { color: #6b7280; font-size: 15px; line-height: 1.6; }\n</style>\n</head>\n<body>\n\n<nav>\n  <div class=\"logo\">Metrik</div>\n  <div class=\"nav-links\">\n    <a href=\"#\">Product</a>\n    <a href=\"#\">Integrations</a>\n    <a href=\"#\">Pricing</a>\n    <a href=\"#\">Docs</a>\n  </div>\n  <button class=\"btn-nav\">Start free trial</button>\n</nav>\n\n<section class=\"hero\">\n  <div class=\"hero-badge\">\u2728 Now with AI-powered insights</div>\n  <h1>Track Every Campaign.<br>Grow Faster.</h1>\n  <p>Metrik helps marketing teams track campaign performance across all channels in one powerful dashboard.</p>\n  <div class=\"hero-buttons\">\n    <button class=\"btn-primary\">Start free trial</button>\n    <button class=\"btn-secondary\">Watch demo</button>\n  </div>\n</section>\n\n<div class=\"stats\">\n  <div class=\"stat-item\">\n    <div class=\"stat-number\">10,000+</div>\n    <div class=\"stat-label\">Happy customers</div>\n  </div>\n  <div class=\"stat-item\">\n    <div class=\"stat-number\">200+</div>\n    <div class=\"stat-label\">Integrations</div>\n  </div>\n  <div class=\"stat-item\">\n    <div class=\"stat-number\">99.9%</div>\n    <div class=\"stat-label\">Uptime</div>\n  </div>\n</div>\n\n<section class=\"features\">\n  <h2>Everything you need to grow</h2>\n  <p class=\"features-sub\">Powerful analytics tools designed for modern marketing teams</p>\n  <div class=\"features-grid\">\n    <div class=\"feature-card\">\n      <div class=\"feature-icon\">\ud83d\udcca</div>\n      <h3>Real-time Analytics</h3>\n      <p>Track your campaign performance in real-time across all your marketing channels.</p>\n    </div>\n    <div class=\"feature-card\">\n      <div class=\"feature-icon\">\ud83d\udd17</div>\n      <h3>200+ Integrations</h3>\n      <p>Connect all your marketing tools seamlessly with our powerful integration library.</p>\n    </div>\n    <div class=\"feature-card\">\n      <div class=\"feature-icon\">\ud83e\udd16</div>\n      <h3>AI-Powered Insights</h3>\n      <p>Get actionable recommendations powered by machine learning to optimize your campaigns.</p>\n    </div>\n  </div>\n</section>\n\n</body>\n</html>\n"}], "grading": null}, {"id": "eval-1-forma-pricing-with_skill", "prompt": "(No prompt found)", "eval_id": null, "outputs": [{"name": "output.html", "type": "text", "content": "<!DOCTYPE html>\n<html lang=\"pt-BR\">\n<head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n<title>Forma Studio \u2014 Investimento</title>\n<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">\n<link href=\"https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400;1,700&family=DM+Sans:wght@300;400;500&display=swap\" rel=\"stylesheet\">\n<style>\n  :root {\n    --bg:         #0E0C09;\n    --surface:    #161310;\n    --border:     #2A2520;\n    --gold:       #C9973A;\n    --gold-dim:   #8B6520;\n    --text:       #F0EBE1;\n    --text-mid:   #9A9080;\n    --text-dim:   #5A5248;\n    --serif:      'Cormorant Garamond', Georgia, serif;\n    --sans:       'DM Sans', system-ui, sans-serif;\n  }\n\n  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }\n  html { font-size: 14px; }\n\n  body {\n    background: var(--bg);\n    color: var(--text);\n    font-family: var(--sans);\n    font-weight: 300;\n    min-height: 100vh;\n  }\n\n  nav {\n    display: flex;\n    align-items: center;\n    justify-content: space-between;\n    padding: 32px 64px;\n    border-bottom: 1px solid var(--border);\n  }\n\n  .logo {\n    font-family: var(--serif);\n    font-size: 20px;\n    font-weight: 400;\n    letter-spacing: 0.18em;\n    text-transform: uppercase;\n    color: var(--text);\n  }\n\n  .nav-links { display: flex; gap: 40px; list-style: none; }\n  .nav-links a {\n    font-family: var(--sans);\n    font-size: 11px;\n    font-weight: 400;\n    letter-spacing: 0.12em;\n    text-transform: uppercase;\n    color: var(--text-mid);\n    text-decoration: none;\n    transition: color 0.2s;\n  }\n  .nav-links a:hover, .nav-links a.active { color: var(--gold); }\n\n  .page-hero {\n    padding: 100px 64px 80px;\n    display: grid;\n    grid-template-columns: 5fr 3fr;\n    gap: 80px;\n    border-bottom: 1px solid var(--border);\n    position: relative;\n    overflow: hidden;\n  }\n\n  .page-hero::before {\n    content: '';\n    position: absolute;\n    left: 0; top: 0; bottom: 0;\n    width: 3px;\n    background: var(--gold);\n  }\n\n  .hero-label {\n    font-family: var(--sans);\n    font-size: 10px;\n    font-weight: 500;\n    letter-spacing: 0.20em;\n    text-transform: uppercase;\n    color: var(--gold);\n    margin-bottom: 28px;\n    display: flex;\n    align-items: center;\n    gap: 12px;\n  }\n\n  .hero-label::after {\n    content: '';\n    display: block;\n    height: 1px;\n    width: 48px;\n    background: var(--gold-dim);\n  }\n\n  .hero-title {\n    font-family: var(--serif);\n    font-size: 88px;\n    font-weight: 300;\n    line-height: 0.9;\n    letter-spacing: -0.02em;\n    color: var(--text);\n  }\n\n  .hero-title .italic-line {\n    font-style: italic;\n    color: var(--gold);\n    display: block;\n  }\n\n  .hero-right {\n    display: flex;\n    flex-direction: column;\n    justify-content: flex-end;\n    padding-bottom: 8px;\n  }\n\n  .hero-desc {\n    font-family: var(--sans);\n    font-size: 14px;\n    font-weight: 300;\n    line-height: 1.85;\n    color: var(--text-mid);\n    margin-bottom: 36px;\n    border-left: 1px solid var(--border);\n    padding-left: 24px;\n  }\n\n  .hero-note {\n    font-family: var(--serif);\n    font-size: 16px;\n    font-style: italic;\n    color: var(--text-dim);\n    line-height: 1.6;\n  }\n\n  .pricing-section { padding: 0 64px 100px; }\n\n  .tier {\n    border-bottom: 1px solid var(--border);\n    display: grid;\n    grid-template-columns: 3fr 4fr 2fr 2fr;\n    transition: background 0.2s;\n  }\n  .tier:hover { background: var(--surface); }\n\n  .tier-identity {\n    padding: 56px 40px 56px 0;\n    border-right: 1px solid var(--border);\n  }\n\n  .tier-number {\n    font-family: var(--sans);\n    font-size: 10px;\n    font-weight: 500;\n    letter-spacing: 0.16em;\n    text-transform: uppercase;\n    color: var(--gold-dim);\n    margin-bottom: 20px;\n  }\n\n  .tier-name {\n    font-family: var(--serif);\n    font-size: 52px;\n    font-weight: 300;\n    letter-spacing: -0.02em;\n    line-height: 0.95;\n    color: var(--text);\n    margin-bottom: 12px;\n  }\n  .tier-name.gold { color: var(--gold); }\n\n  .tier-tagline {\n    font-family: var(--serif);\n    font-size: 15px;\n    font-style: italic;\n    color: var(--text-dim);\n    margin-top: 16px;\n    display: block;\n  }\n\n  .tier-scope {\n    padding: 56px 40px;\n    border-right: 1px solid var(--border);\n  }\n\n  .tier-scope ul { list-style: none; display: flex; flex-direction: column; gap: 12px; }\n  .tier-scope li {\n    font-family: var(--sans);\n    font-size: 13px;\n    font-weight: 300;\n    color: var(--text-mid);\n    display: flex;\n    align-items: flex-start;\n    gap: 14px;\n    line-height: 1.6;\n  }\n  .tier-scope li::before {\n    content: '';\n    display: inline-block;\n    width: 20px;\n    height: 1px;\n    background: var(--gold);\n    flex-shrink: 0;\n    margin-top: 11px;\n  }\n\n  .tier-price-col {\n    padding: 56px 32px;\n    display: flex;\n    flex-direction: column;\n    justify-content: space-between;\n    border-right: 1px solid var(--border);\n  }\n\n  .tier-price {\n    font-family: var(--serif);\n    font-size: 48px;\n    font-weight: 300;\n    letter-spacing: -0.02em;\n    color: var(--text);\n    line-height: 1;\n  }\n  .tier-price.featured { color: var(--gold); }\n\n  .tier-timeline {\n    font-family: var(--sans);\n    font-size: 11px;\n    letter-spacing: 0.08em;\n    color: var(--text-dim);\n    text-transform: uppercase;\n    margin-top: 8px;\n  }\n\n  .tier-action-col {\n    padding: 56px 32px;\n    display: flex;\n    align-items: flex-end;\n    justify-content: flex-end;\n  }\n\n  .btn-enquire {\n    font-family: var(--sans);\n    font-size: 10px;\n    font-weight: 500;\n    letter-spacing: 0.14em;\n    text-transform: uppercase;\n    color: var(--text);\n    background: none;\n    border: 1px solid var(--border);\n    padding: 14px 28px;\n    cursor: pointer;\n    transition: border-color 0.2s, color 0.2s, background 0.2s;\n  }\n  .btn-enquire:hover { border-color: var(--text); }\n  .btn-enquire.gold { background: var(--gold); border-color: var(--gold); color: var(--bg); font-weight: 500; }\n  .btn-enquire.gold:hover { background: #E5AD4A; border-color: #E5AD4A; }\n\n  .pricing-footer {\n    margin-top: 64px;\n    padding-top: 40px;\n    border-top: 1px solid var(--border);\n    display: flex;\n    justify-content: space-between;\n    align-items: flex-end;\n    gap: 48px;\n  }\n\n  .footer-note {\n    font-family: var(--sans);\n    font-size: 12px;\n    font-weight: 300;\n    color: var(--text-dim);\n    line-height: 1.8;\n    max-width: 440px;\n  }\n\n  .footer-cta {\n    font-family: var(--serif);\n    font-size: 22px;\n    font-weight: 300;\n    font-style: italic;\n    color: var(--text-mid);\n    white-space: nowrap;\n  }\n  .footer-cta a {\n    color: var(--gold);\n    text-decoration: none;\n    border-bottom: 1px solid var(--gold-dim);\n    padding-bottom: 2px;\n    transition: border-color 0.2s;\n  }\n  .footer-cta a:hover { border-color: var(--gold); }\n</style>\n</head>\n<body>\n\n<nav>\n  <div class=\"logo\">Forma Studio</div>\n  <ul class=\"nav-links\">\n    <li><a href=\"#\">Trabalho</a></li>\n    <li><a href=\"#\">Processo</a></li>\n    <li><a href=\"#\">Estudio</a></li>\n    <li><a href=\"#\" class=\"active\">Investimento</a></li>\n  </ul>\n</nav>\n\n<header class=\"page-hero\">\n  <div>\n    <p class=\"hero-label\">Investimento</p>\n    <h1 class=\"hero-title\">\n      O que<br>\n      construimos<br>\n      <span class=\"italic-line\">juntos</span>\n    </h1>\n  </div>\n  <div class=\"hero-right\">\n    <p class=\"hero-desc\">\n      Todo projeto e escopo antes de comecar. Trabalhamos com um numero limitado de clientes por trimestre para garantir que o trabalho receba a atencao que merece.\n    </p>\n    <p class=\"hero-note\">\n      Todos os projetos comecam com uma sessao de descoberta \u2014 incluida em cada escopo.\n    </p>\n  </div>\n</header>\n\n<section class=\"pricing-section\">\n\n  <div class=\"tier\">\n    <div class=\"tier-identity\">\n      <div class=\"tier-number\">01 \u2014 Fundacao</div>\n      <div class=\"tier-name\">Identidade<br>de Marca</div>\n      <span class=\"tier-tagline\">A base de tudo</span>\n    </div>\n    <div class=\"tier-scope\">\n      <ul>\n        <li>Workshop de posicionamento e estrategia de marca</li>\n        <li>Logotipo, logotipo e sistema de wordmark</li>\n        <li>Paleta de cores e tipografia</li>\n        <li>Manual de identidade visual</li>\n        <li>Arquivos em todos os formatos (print e digital)</li>\n      </ul>\n    </div>\n    <div class=\"tier-price-col\">\n      <div>\n        <div class=\"tier-price\">R$ 22k</div>\n        <div class=\"tier-timeline\">4 \u2013 6 semanas</div>\n      </div>\n    </div>\n    <div class=\"tier-action-col\">\n      <button class=\"btn-enquire\">Consultar</button>\n    </div>\n  </div>\n\n  <div class=\"tier\">\n    <div class=\"tier-identity\">\n      <div class=\"tier-number\">02 \u2014 Presenca</div>\n      <div class=\"tier-name gold\">Marca<br>+ Web</div>\n      <span class=\"tier-tagline\">Identidade levada ao digital</span>\n    </div>\n    <div class=\"tier-scope\">\n      <ul>\n        <li>Tudo em Identidade de Marca</li>\n        <li>Estrategia de conteudo e arquitetura de informacao</li>\n        <li>Ate 8 paginas projetadas</li>\n        <li>Desenvolvimento em Webflow ou Framer</li>\n        <li>SEO essencial e 30 dias de suporte pos-lancamento</li>\n      </ul>\n    </div>\n    <div class=\"tier-price-col\">\n      <div>\n        <div class=\"tier-price featured\">R$ 44k</div>\n        <div class=\"tier-timeline\">8 \u2013 10 semanas</div>\n      </div>\n    </div>\n    <div class=\"tier-action-col\">\n      <button class=\"btn-enquire gold\">Consultar</button>\n    </div>\n  </div>\n\n  <div class=\"tier\">\n    <div class=\"tier-identity\">\n      <div class=\"tier-number\">03 \u2014 Ecossistema</div>\n      <div class=\"tier-name\">Sistema<br>Completo</div>\n      <span class=\"tier-tagline\">Da visao a execucao</span>\n    </div>\n    <div class=\"tier-scope\">\n      <ul>\n        <li>Tudo em Marca + Web</li>\n        <li>Sistema de motion e animacao de marca</li>\n        <li>Templates de marketing (social, e-mail, apresentacao)</li>\n        <li>Estrategia de lancamento da marca</li>\n        <li>Parceria de marca por 3 meses (retainer)</li>\n      </ul>\n    </div>\n    <div class=\"tier-price-col\">\n      <div>\n        <div class=\"tier-price\">R$ 88k</div>\n        <div class=\"tier-timeline\">14 \u2013 18 semanas</div>\n      </div>\n    </div>\n    <div class=\"tier-action-col\">\n      <button class=\"btn-enquire\">Consultar</button>\n    </div>\n  </div>\n\n  <div class=\"pricing-footer\">\n    <p class=\"footer-note\">\n      Os prazos sao estimativas baseadas na agilidade do cliente e no escopo definido. Projetos urgentes estao disponiveis com taxa adicional. Todos os projetos: 50% na assinatura, 50% na entrega.\n    </p>\n    <p class=\"footer-cta\">\n      Duvidas? <a href=\"mailto:oi@formastudio.com.br\">oi@formastudio.com.br</a>\n    </p>\n  </div>\n\n</section>\n\n</body>\n</html>\n"}], "grading": null}, {"id": "eval-1-forma-pricing-without_skill", "prompt": "(No prompt found)", "eval_id": null, "outputs": [{"name": "output.html", "type": "text", "content": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n<title>Forma Studio - Pricing</title>\n<style>\n  * { margin: 0; padding: 0; box-sizing: border-box; }\n  body { font-family: 'Inter', -apple-system, sans-serif; background: #fff; color: #111827; }\n\n  nav {\n    display: flex; justify-content: space-between; align-items: center;\n    padding: 20px 64px; border-bottom: 1px solid #e5e7eb;\n  }\n  .logo { font-size: 20px; font-weight: 700; }\n  nav a { text-decoration: none; color: #6b7280; margin-left: 32px; }\n\n  .hero { text-align: center; padding: 80px 24px 64px; }\n  .hero h1 { font-size: 48px; font-weight: 700; margin-bottom: 16px; }\n  .hero p { color: #6b7280; font-size: 18px; max-width: 560px; margin: 0 auto; }\n\n  .pricing { display: flex; gap: 24px; justify-content: center; padding: 0 64px 80px; }\n\n  .card {\n    background: #fff; border: 1px solid #e5e7eb; border-radius: 16px;\n    padding: 40px 32px; width: 320px; position: relative;\n    box-shadow: 0 4px 24px rgba(0,0,0,0.06); transition: transform 0.2s;\n  }\n  .card:hover { transform: scale(1.02); }\n  .card.popular { border-color: #6366f1; }\n\n  .popular-badge {\n    position: absolute; top: -14px; left: 50%; transform: translateX(-50%);\n    background: #6366f1; color: white; font-size: 12px; font-weight: 600;\n    padding: 4px 16px; border-radius: 999px;\n  }\n\n  .card-name { font-size: 20px; font-weight: 600; margin-bottom: 8px; }\n  .card-desc { color: #6b7280; font-size: 14px; margin-bottom: 24px; line-height: 1.6; }\n  .card-price { font-size: 42px; font-weight: 800; margin-bottom: 4px; }\n  .card-timeline { color: #6b7280; font-size: 13px; margin-bottom: 32px; }\n\n  .card ul { list-style: none; margin-bottom: 32px; }\n  .card ul li {\n    padding: 10px 0; border-bottom: 1px solid #f3f4f6;\n    font-size: 14px; display: flex; align-items: center; gap: 10px;\n  }\n  .card ul li::before { content: \"\u2713\"; color: #6366f1; font-weight: 700; }\n\n  .btn {\n    width: 100%; padding: 14px; border-radius: 10px; font-size: 15px;\n    font-weight: 600; cursor: pointer; border: none;\n    background: #f3f4f6; color: #374151; transition: background 0.2s;\n  }\n  .btn:hover { background: #e5e7eb; }\n  .btn.primary { background: #6366f1; color: white; }\n  .btn.primary:hover { background: #4f46e5; }\n</style>\n</head>\n<body>\n\n<nav>\n  <div class=\"logo\">Forma Studio</div>\n  <div>\n    <a href=\"#\">Work</a>\n    <a href=\"#\">About</a>\n    <a href=\"#\">Pricing</a>\n    <a href=\"#\">Contact</a>\n  </div>\n</nav>\n\n<div class=\"hero\">\n  <h1>Simple, Transparent Pricing</h1>\n  <p>Choose the plan that's right for your business. All plans include a discovery session.</p>\n</div>\n\n<div class=\"pricing\">\n  <div class=\"card\">\n    <div class=\"card-name\">Brand Identity</div>\n    <div class=\"card-desc\">Perfect for startups and small businesses looking to establish their brand.</div>\n    <div class=\"card-price\">$4,500</div>\n    <div class=\"card-timeline\">4-6 weeks delivery</div>\n    <ul>\n      <li>Logo & brand mark</li>\n      <li>Color palette</li>\n      <li>Typography system</li>\n      <li>Brand guidelines</li>\n      <li>File package</li>\n    </ul>\n    <button class=\"btn\">Get started</button>\n  </div>\n\n  <div class=\"card popular\">\n    <div class=\"popular-badge\">Most Popular</div>\n    <div class=\"card-name\">Brand + Web</div>\n    <div class=\"card-desc\">The complete package for businesses ready to make their mark online.</div>\n    <div class=\"card-price\">$9,000</div>\n    <div class=\"card-timeline\">8-10 weeks delivery</div>\n    <ul>\n      <li>Everything in Brand Identity</li>\n      <li>Website design (up to 8 pages)</li>\n      <li>Webflow development</li>\n      <li>SEO basics</li>\n      <li>30-day support</li>\n    </ul>\n    <button class=\"btn primary\">Get started</button>\n  </div>\n\n  <div class=\"card\">\n    <div class=\"card-name\">Full Brand System</div>\n    <div class=\"card-desc\">For businesses serious about building a complete brand ecosystem.</div>\n    <div class=\"card-price\">$18,000</div>\n    <div class=\"card-timeline\">14-18 weeks delivery</div>\n    <ul>\n      <li>Everything in Brand + Web</li>\n      <li>Motion & animation</li>\n      <li>Marketing templates</li>\n      <li>Brand launch strategy</li>\n      <li>3-month retainer</li>\n    </ul>\n    <button class=\"btn\">Get started</button>\n  </div>\n</div>\n\n</body>\n</html>\n"}], "grading": null}, {"id": "eval-2-isabela-portfolio-with_skill", "prompt": "(No prompt found)", "eval_id": null, "outputs": [{"name": "output.html", "type": "text", "content": "<!DOCTYPE html>\n<html lang=\"pt-BR\">\n<head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n<title>Isabela Ramos \u2014 Fotografia</title>\n<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">\n<link href=\"https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&family=IBM+Plex+Mono:wght@300;400&family=IBM+Plex+Sans:wght@300;400&display=swap\" rel=\"stylesheet\">\n<style>\n  :root {\n    --preto:   #080808;\n    --branco:  #F0EDE8;\n    --cinza:   #5A5550;\n    --regua:   #1E1E1E;\n    --serif:   'Playfair Display', Georgia, serif;\n    --mono:    'IBM Plex Mono', 'Courier New', monospace;\n    --sans:    'IBM Plex Sans', system-ui, sans-serif;\n  }\n\n  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }\n  html { font-size: 14px; }\n\n  body {\n    background: var(--preto);\n    color: var(--branco);\n    font-family: var(--sans);\n    font-weight: 300;\n  }\n\n  /* NAV */\n  nav {\n    display: flex;\n    justify-content: space-between;\n    align-items: baseline;\n    padding: 36px 48px 28px;\n    border-bottom: 1px solid var(--regua);\n  }\n\n  .nav-nome {\n    font-family: var(--serif);\n    font-size: 15px;\n    font-weight: 400;\n    letter-spacing: 0.06em;\n    color: var(--branco);\n  }\n\n  .nav-links {\n    display: flex;\n    gap: 36px;\n    list-style: none;\n  }\n\n  .nav-links a {\n    font-family: var(--mono);\n    font-size: 10px;\n    letter-spacing: 0.14em;\n    text-transform: uppercase;\n    color: var(--cinza);\n    text-decoration: none;\n    transition: color 0.2s;\n  }\n\n  .nav-links a:hover { color: var(--branco); }\n\n  /* HERO \u2014 tipografia como estrutura */\n  .hero {\n    padding: 0 48px 72px;\n    border-bottom: 1px solid var(--regua);\n  }\n\n  /* Numero de edicao */\n  .hero-topo {\n    display: flex;\n    justify-content: space-between;\n    align-items: flex-end;\n    padding: 40px 0 0;\n    margin-bottom: 0;\n  }\n\n  .hero-edicao {\n    font-family: var(--mono);\n    font-size: 10px;\n    letter-spacing: 0.16em;\n    text-transform: uppercase;\n    color: var(--cinza);\n  }\n\n  .hero-local {\n    font-family: var(--mono);\n    font-size: 10px;\n    letter-spacing: 0.10em;\n    text-transform: uppercase;\n    color: var(--cinza);\n  }\n\n  /* nome gigante \u2014 ocupa quase a largura total */\n  .hero-nome-bloco {\n    position: relative;\n    overflow: hidden;\n  }\n\n  .hero-nome {\n    font-family: var(--serif);\n    font-size: clamp(80px, 13vw, 160px);\n    font-weight: 700;\n    line-height: 0.88;\n    letter-spacing: -0.03em;\n    color: var(--branco);\n    display: block;\n  }\n\n  .hero-nome .primeira {\n    display: block;\n    font-style: italic;\n    font-weight: 400;\n    font-size: clamp(76px, 12vw, 148px);\n  }\n\n  /* linha divisora interna */\n  .hero-divisor {\n    display: grid;\n    grid-template-columns: 1fr 1fr;\n    gap: 48px;\n    padding-top: 48px;\n    border-top: 1px solid var(--regua);\n    margin-top: 40px;\n  }\n\n  .hero-desc {\n    font-family: var(--serif);\n    font-size: 20px;\n    font-style: italic;\n    font-weight: 400;\n    line-height: 1.5;\n    color: var(--branco);\n  }\n\n  .hero-meta {\n    display: flex;\n    flex-direction: column;\n    justify-content: flex-end;\n    gap: 8px;\n  }\n\n  .hero-publicacoes {\n    font-family: var(--mono);\n    font-size: 10px;\n    letter-spacing: 0.10em;\n    text-transform: uppercase;\n    color: var(--cinza);\n    line-height: 2;\n  }\n\n  /* TRABALHOS \u2014 grid assimetrico */\n  .trabalhos {\n    padding: 72px 48px;\n  }\n\n  .secao-header {\n    display: flex;\n    align-items: baseline;\n    justify-content: space-between;\n    border-bottom: 1px solid var(--regua);\n    padding-bottom: 20px;\n    margin-bottom: 48px;\n  }\n\n  .secao-label {\n    font-family: var(--mono);\n    font-size: 10px;\n    letter-spacing: 0.16em;\n    text-transform: uppercase;\n    color: var(--cinza);\n  }\n\n  .secao-contagem {\n    font-family: var(--mono);\n    font-size: 10px;\n    letter-spacing: 0.08em;\n    color: var(--regua);\n  }\n\n  /* Grid: coluna grande + 2 menores + uma faixa inferior */\n  .grade-trabalhos {\n    display: grid;\n    grid-template-columns: 7fr 3fr 4fr;\n    grid-template-rows: auto auto;\n    gap: 3px;\n  }\n\n  .trabalho {\n    position: relative;\n    overflow: hidden;\n    cursor: pointer;\n  }\n\n  .trabalho:nth-child(1) { grid-column: 1; grid-row: 1 / 3; }\n  .trabalho:nth-child(2) { grid-column: 2; grid-row: 1; }\n  .trabalho:nth-child(3) { grid-column: 3; grid-row: 1; }\n  .trabalho:nth-child(4) { grid-column: 2 / 4; grid-row: 2; }\n\n  .foto-bloco {\n    width: 100%;\n    background: var(--regua);\n    position: relative;\n    overflow: hidden;\n  }\n\n  /* alturas diferentes \u2014 intencional */\n  .trabalho:nth-child(1) .foto-bloco { height: 580px; background: #141414; }\n  .trabalho:nth-child(2) .foto-bloco { height: 270px; background: #1A1A16; }\n  .trabalho:nth-child(3) .foto-bloco { height: 270px; background: #181818; }\n  .trabalho:nth-child(4) .foto-bloco { height: 290px; background: #161620; }\n\n  /* grao simulado */\n  .foto-bloco::after {\n    content: '';\n    position: absolute;\n    inset: 0;\n    background-image: url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E\");\n    opacity: 0.5;\n  }\n\n  .foto-label {\n    padding: 10px 0 0;\n    display: flex;\n    justify-content: space-between;\n    align-items: baseline;\n  }\n\n  .foto-titulo {\n    font-family: var(--serif);\n    font-size: 13px;\n    font-weight: 400;\n    font-style: italic;\n    color: var(--branco);\n  }\n\n  .foto-meta {\n    font-family: var(--mono);\n    font-size: 10px;\n    letter-spacing: 0.08em;\n    color: var(--cinza);\n  }\n\n  /* CONTATO */\n  .contato {\n    border-top: 1px solid var(--regua);\n    padding: 40px 48px;\n    display: flex;\n    align-items: center;\n    justify-content: space-between;\n  }\n\n  .contato-esq {\n    font-family: var(--serif);\n    font-size: 36px;\n    font-weight: 300;\n    font-style: italic;\n    color: var(--cinza);\n    line-height: 1.3;\n  }\n\n  .contato-dir {\n    display: flex;\n    align-items: center;\n    gap: 48px;\n  }\n\n  .contato-email {\n    font-family: var(--mono);\n    font-size: 12px;\n    letter-spacing: 0.06em;\n    color: var(--branco);\n    text-decoration: none;\n    border-bottom: 1px solid var(--regua);\n    padding-bottom: 2px;\n    transition: border-color 0.2s;\n  }\n  .contato-email:hover { border-color: var(--branco); }\n\n  .contato-cidade {\n    font-family: var(--mono);\n    font-size: 10px;\n    letter-spacing: 0.12em;\n    text-transform: uppercase;\n    color: var(--cinza);\n  }\n</style>\n</head>\n<body>\n\n<nav>\n  <div class=\"nav-nome\">Isabela Ramos</div>\n  <ul class=\"nav-links\">\n    <li><a href=\"#\">Trabalho</a></li>\n    <li><a href=\"#\">Editorial</a></li>\n    <li><a href=\"#\">Documentario</a></li>\n    <li><a href=\"#\">Sobre</a></li>\n    <li><a href=\"#\">Contato</a></li>\n  </ul>\n</nav>\n\n<section class=\"hero\">\n  <div class=\"hero-topo\">\n    <span class=\"hero-edicao\">Portfolio 2024</span>\n    <span class=\"hero-local\">Sao Paulo / Mundo</span>\n  </div>\n\n  <div class=\"hero-nome-bloco\">\n    <h1 class=\"hero-nome\">\n      <span class=\"primeira\">Isabela</span>\n      Ramos\n    </h1>\n  </div>\n\n  <div class=\"hero-divisor\">\n    <p class=\"hero-desc\">\n      \"A fotografia e a unica linguagem que pode ser compreendida em qualquer lugar do mundo.\"\n    </p>\n    <div class=\"hero-meta\">\n      <p class=\"hero-publicacoes\">\n        Publicada em<br>\n        Le Monde \u00b7 The Guardian<br>\n        Folha de S.Paulo \u00b7 Vogue BR\n      </p>\n    </div>\n  </div>\n</section>\n\n<section class=\"trabalhos\">\n  <div class=\"secao-header\">\n    <span class=\"secao-label\">Trabalhos Selecionados</span>\n    <span class=\"secao-contagem\">012 / 084</span>\n  </div>\n\n  <div class=\"grade-trabalhos\">\n    <div class=\"trabalho\">\n      <div class=\"foto-bloco\"></div>\n      <div class=\"foto-label\">\n        <span class=\"foto-titulo\">Feira de Sao Cristovao, Rio</span>\n        <span class=\"foto-meta\">2023</span>\n      </div>\n    </div>\n    <div class=\"trabalho\">\n      <div class=\"foto-bloco\"></div>\n      <div class=\"foto-label\">\n        <span class=\"foto-titulo\">Serie de retratos</span>\n        <span class=\"foto-meta\">Vogue BR</span>\n      </div>\n    </div>\n    <div class=\"trabalho\">\n      <div class=\"foto-bloco\"></div>\n      <div class=\"foto-label\">\n        <span class=\"foto-titulo\">Sem titulo #04</span>\n        <span class=\"foto-meta\">2024</span>\n      </div>\n    </div>\n    <div class=\"trabalho\">\n      <div class=\"foto-bloco\"></div>\n      <div class=\"foto-label\">\n        <span class=\"foto-titulo\">Mercado Municipal \u2014 um estudo</span>\n        <span class=\"foto-meta\">The Guardian</span>\n      </div>\n    </div>\n  </div>\n</section>\n\n<div class=\"contato\">\n  <p class=\"contato-esq\">Disponivel para editorial<br>e trabalho comercial.</p>\n  <div class=\"contato-dir\">\n    <a href=\"mailto:isa@isabelaramos.com.br\" class=\"contato-email\">isa@isabelaramos.com.br</a>\n    <span class=\"contato-cidade\">Sao Paulo, BR</span>\n  </div>\n</div>\n\n</body>\n</html>\n"}], "grading": null}, {"id": "eval-2-isabela-portfolio-without_skill", "prompt": "(No prompt found)", "eval_id": null, "outputs": [{"name": "output.html", "type": "text", "content": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n<title>Isabela Ramos - Photography</title>\n<style>\n  * { margin: 0; padding: 0; box-sizing: border-box; }\n  body { font-family: 'Inter', -apple-system, sans-serif; background: #fff; color: #111827; }\n\n  nav {\n    display: flex; justify-content: space-between; align-items: center;\n    padding: 20px 64px; border-bottom: 1px solid #e5e7eb;\n    position: sticky; top: 0; background: white; z-index: 10;\n  }\n  .logo { font-size: 20px; font-weight: 700; }\n  .nav-links { display: flex; gap: 32px; list-style: none; }\n  .nav-links a { text-decoration: none; color: #6b7280; font-size: 15px; transition: color 0.2s; }\n  .nav-links a:hover { color: #111827; }\n\n  .hero {\n    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n    color: white; text-align: center; padding: 120px 24px;\n  }\n  .hero-subtitle { font-size: 14px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.8; margin-bottom: 20px; }\n  .hero h1 { font-size: 56px; font-weight: 800; margin-bottom: 20px; }\n  .hero p { font-size: 18px; opacity: 0.85; max-width: 520px; margin: 0 auto 40px; line-height: 1.6; }\n  .hero-buttons { display: flex; gap: 16px; justify-content: center; }\n  .btn-primary { background: white; color: #764ba2; border: none; padding: 14px 32px; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; }\n  .btn-secondary { background: transparent; color: white; border: 2px solid rgba(255,255,255,0.6); padding: 14px 32px; border-radius: 8px; font-size: 15px; cursor: pointer; }\n\n  .stats { display: flex; justify-content: center; gap: 64px; padding: 48px; background: #f9fafb; border-bottom: 1px solid #e5e7eb; }\n  .stat-item { text-align: center; }\n  .stat-number { font-size: 32px; font-weight: 700; color: #6366f1; }\n  .stat-label { color: #6b7280; font-size: 13px; margin-top: 4px; }\n\n  .gallery-section { padding: 80px 64px; }\n  .gallery-section h2 { text-align: center; font-size: 36px; font-weight: 700; margin-bottom: 12px; }\n  .gallery-section .sub { text-align: center; color: #6b7280; margin-bottom: 48px; font-size: 16px; }\n\n  .gallery-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }\n  .gallery-card {\n    background: #f3f4f6; border-radius: 12px; overflow: hidden;\n    box-shadow: 0 4px 24px rgba(0,0,0,0.08); transition: transform 0.2s;\n    cursor: pointer;\n  }\n  .gallery-card:hover { transform: scale(1.02); }\n  .gallery-card-img { height: 220px; background: #d1d5db; }\n  .gallery-card:nth-child(2) .gallery-card-img { background: #c4b5fd; }\n  .gallery-card:nth-child(3) .gallery-card-img { background: #a5b4fc; }\n  .gallery-card:nth-child(4) .gallery-card-img { background: #93c5fd; }\n  .gallery-card:nth-child(5) .gallery-card-img { background: #6ee7b7; }\n  .gallery-card:nth-child(6) .gallery-card-img { background: #fca5a5; }\n  .gallery-card-body { padding: 16px; }\n  .gallery-card-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }\n  .gallery-card-meta { font-size: 13px; color: #6b7280; }\n\n  .about { padding: 80px 64px; background: #f9fafb; display: flex; align-items: center; gap: 64px; }\n  .about-img { width: 320px; height: 320px; border-radius: 50%; background: linear-gradient(135deg, #667eea, #764ba2); flex-shrink: 0; }\n  .about-content h2 { font-size: 36px; font-weight: 700; margin-bottom: 16px; }\n  .about-content p { color: #6b7280; font-size: 16px; line-height: 1.7; margin-bottom: 16px; }\n  .about-tags { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 24px; }\n  .about-tag { background: #e0e7ff; color: #4338ca; font-size: 13px; font-weight: 500; padding: 6px 16px; border-radius: 999px; }\n\n  .contact { padding: 80px 64px; text-align: center; }\n  .contact h2 { font-size: 36px; font-weight: 700; margin-bottom: 16px; }\n  .contact p { color: #6b7280; font-size: 16px; max-width: 480px; margin: 0 auto 32px; }\n  .contact-btn { background: #6366f1; color: white; border: none; padding: 16px 40px; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; }\n\n  footer { text-align: center; padding: 32px; border-top: 1px solid #e5e7eb; color: #9ca3af; font-size: 14px; }\n</style>\n</head>\n<body>\n\n<nav>\n  <div class=\"logo\">Isabela Ramos</div>\n  <ul class=\"nav-links\">\n    <li><a href=\"#\">Work</a></li>\n    <li><a href=\"#\">About</a></li>\n    <li><a href=\"#\">Services</a></li>\n    <li><a href=\"#\">Contact</a></li>\n  </ul>\n</nav>\n\n<section class=\"hero\">\n  <p class=\"hero-subtitle\">Documentary & Editorial Photographer</p>\n  <h1>Capturing Stories<br>That Matter</h1>\n  <p>Award-winning photographer based in Sao Paulo, bringing authentic moments to life through powerful visual storytelling.</p>\n  <div class=\"hero-buttons\">\n    <button class=\"btn-primary\">View My Work</button>\n    <button class=\"btn-secondary\">Get in Touch</button>\n  </div>\n</section>\n\n<div class=\"stats\">\n  <div class=\"stat-item\">\n    <div class=\"stat-number\">10+</div>\n    <div class=\"stat-label\">Years Experience</div>\n  </div>\n  <div class=\"stat-item\">\n    <div class=\"stat-number\">500+</div>\n    <div class=\"stat-label\">Projects Completed</div>\n  </div>\n  <div class=\"stat-item\">\n    <div class=\"stat-number\">30+</div>\n    <div class=\"stat-label\">Publications</div>\n  </div>\n</div>\n\n<section class=\"gallery-section\">\n  <h2>Selected Work</h2>\n  <p class=\"sub\">A curated selection of my best photography projects</p>\n  <div class=\"gallery-grid\">\n    <div class=\"gallery-card\">\n      <div class=\"gallery-card-img\"></div>\n      <div class=\"gallery-card-body\">\n        <div class=\"gallery-card-title\">Feira de Sao Cristovao</div>\n        <div class=\"gallery-card-meta\">Documentary \u00b7 2023</div>\n      </div>\n    </div>\n    <div class=\"gallery-card\">\n      <div class=\"gallery-card-img\"></div>\n      <div class=\"gallery-card-body\">\n        <div class=\"gallery-card-title\">Portrait Series</div>\n        <div class=\"gallery-card-meta\">Editorial \u00b7 Vogue BR</div>\n      </div>\n    </div>\n    <div class=\"gallery-card\">\n      <div class=\"gallery-card-img\"></div>\n      <div class=\"gallery-card-body\">\n        <div class=\"gallery-card-title\">Untitled #04</div>\n        <div class=\"gallery-card-meta\">Fine Art \u00b7 2024</div>\n      </div>\n    </div>\n    <div class=\"gallery-card\">\n      <div class=\"gallery-card-img\"></div>\n      <div class=\"gallery-card-body\">\n        <div class=\"gallery-card-title\">Mercado Municipal</div>\n        <div class=\"gallery-card-meta\">Documentary \u00b7 The Guardian</div>\n      </div>\n    </div>\n    <div class=\"gallery-card\">\n      <div class=\"gallery-card-img\"></div>\n      <div class=\"gallery-card-body\">\n        <div class=\"gallery-card-title\">Urban Portraits</div>\n        <div class=\"gallery-card-meta\">Editorial \u00b7 2023</div>\n      </div>\n    </div>\n    <div class=\"gallery-card\">\n      <div class=\"gallery-card-img\"></div>\n      <div class=\"gallery-card-body\">\n        <div class=\"gallery-card-title\">Cultural Heritage</div>\n        <div class=\"gallery-card-meta\">Documentary \u00b7 Le Monde</div>\n      </div>\n    </div>\n  </div>\n</section>\n\n<section class=\"about\">\n  <div class=\"about-img\"></div>\n  <div class=\"about-content\">\n    <h2>About Me</h2>\n    <p>I'm a documentary and editorial photographer based in Sao Paulo, Brazil. My work focuses on the intersection of culture, community, and the spaces people inhabit.</p>\n    <p>Published in Le Monde, The Guardian, Folha de S.Paulo, and Vogue Brasil. Available for editorial assignments and commercial projects worldwide.</p>\n    <div class=\"about-tags\">\n      <span class=\"about-tag\">Documentary</span>\n      <span class=\"about-tag\">Editorial</span>\n      <span class=\"about-tag\">Portrait</span>\n      <span class=\"about-tag\">Commercial</span>\n    </div>\n  </div>\n</section>\n\n<section class=\"contact\">\n  <h2>Let's Work Together</h2>\n  <p>Available for editorial, commercial, and documentary projects. Based in Sao Paulo, traveling worldwide.</p>\n  <button class=\"contact-btn\">Get in Touch</button>\n</section>\n\n<footer>\n  \u00a9 2024 Isabela Ramos Photography. All rights reserved.\n</footer>\n\n</body>\n</html>\n"}], "grading": null}], "previous_feedback": {}, "previous_outputs": {}};
+
+    // ---- State ----
+    let feedbackMap = {};  // run_id -> feedback text
+    let currentIndex = 0;
+    let visitedRuns = new Set();
+
+    // ---- Init ----
+    async function init() {
+      // Load saved feedback from server — but only if this isn't a fresh
+      // iteration (indicated by previous_feedback being present). When
+      // previous feedback exists, the feedback.json on disk is stale from
+      // the prior iteration and should not pre-fill the textareas.
+      const hasPrevious = Object.keys(EMBEDDED_DATA.previous_feedback || {}).length > 0
+        || Object.keys(EMBEDDED_DATA.previous_outputs || {}).length > 0;
+      if (!hasPrevious) {
+        try {
+          const resp = await fetch("/api/feedback");
+          const data = await resp.json();
+          if (data.reviews) {
+            for (const r of data.reviews) feedbackMap[r.run_id] = r.feedback;
+          }
+        } catch { /* first run, no feedback yet */ }
+      }
+
+      document.getElementById("skill-name").textContent = EMBEDDED_DATA.skill_name;
+      showRun(0);
+
+      // Wire up feedback auto-save
+      const textarea = document.getElementById("feedback");
+      let saveTimeout = null;
+      textarea.addEventListener("input", () => {
+        clearTimeout(saveTimeout);
+        document.getElementById("feedback-status").textContent = "";
+        saveTimeout = setTimeout(() => saveCurrentFeedback(), 800);
+      });
+    }
+
+    // ---- Navigation ----
+    function navigate(delta) {
+      const newIndex = currentIndex + delta;
+      if (newIndex >= 0 && newIndex < EMBEDDED_DATA.runs.length) {
+        saveCurrentFeedback();
+        showRun(newIndex);
+      }
+    }
+
+    function updateNavButtons() {
+      document.getElementById("prev-btn").disabled = currentIndex === 0;
+      document.getElementById("next-btn").disabled =
+        currentIndex === EMBEDDED_DATA.runs.length - 1;
+    }
+
+    // ---- Show a run ----
+    function showRun(index) {
+      currentIndex = index;
+      const run = EMBEDDED_DATA.runs[index];
+
+      // Progress
+      document.getElementById("progress").textContent =
+        `${index + 1} of ${EMBEDDED_DATA.runs.length}`;
+
+      // Prompt
+      document.getElementById("prompt-text").textContent = run.prompt;
+
+      // Config badge
+      const badge = document.getElementById("config-badge");
+      const configMatch = run.id.match(/(with_skill|without_skill|new_skill|old_skill)/);
+      if (configMatch) {
+        const config = configMatch[1];
+        const isBaseline = config === "without_skill" || config === "old_skill";
+        badge.textContent = config.replace(/_/g, " ");
+        badge.className = "config-badge " + (isBaseline ? "config-baseline" : "config-primary");
+        badge.style.display = "inline-block";
+      } else {
+        badge.style.display = "none";
+      }
+
+      // Outputs
+      renderOutputs(run);
+
+      // Previous outputs
+      renderPrevOutputs(run);
+
+      // Grades
+      renderGrades(run);
+
+      // Previous feedback
+      const prevFb = (EMBEDDED_DATA.previous_feedback || {})[run.id];
+      const prevEl = document.getElementById("prev-feedback");
+      if (prevFb) {
+        document.getElementById("prev-feedback-text").textContent = prevFb;
+        prevEl.style.display = "block";
+      } else {
+        prevEl.style.display = "none";
+      }
+
+      // Feedback
+      document.getElementById("feedback").value = feedbackMap[run.id] || "";
+      document.getElementById("feedback-status").textContent = "";
+
+      updateNavButtons();
+
+      // Track visited runs and promote done button when all visited
+      visitedRuns.add(index);
+      const doneBtn = document.getElementById("done-btn");
+      if (visitedRuns.size >= EMBEDDED_DATA.runs.length) {
+        doneBtn.classList.add("ready");
+      }
+
+      // Scroll main content to top
+      document.querySelector(".main").scrollTop = 0;
+    }
+
+    // ---- Render outputs ----
+    function renderOutputs(run) {
+      const container = document.getElementById("outputs-body");
+      container.innerHTML = "";
+
+      const outputs = run.outputs || [];
+      if (outputs.length === 0) {
+        container.innerHTML = '<div class="empty-state">No output files</div>';
+        return;
+      }
+
+      for (const file of outputs) {
+        const fileDiv = document.createElement("div");
+        fileDiv.className = "output-file";
+
+        // Always show file header with download link
+        const header = document.createElement("div");
+        header.className = "output-file-header";
+        const nameSpan = document.createElement("span");
+        nameSpan.textContent = file.name;
+        header.appendChild(nameSpan);
+        const dlBtn = document.createElement("a");
+        dlBtn.className = "dl-btn";
+        dlBtn.textContent = "Download";
+        dlBtn.download = file.name;
+        dlBtn.href = getDownloadUri(file);
+        header.appendChild(dlBtn);
+        fileDiv.appendChild(header);
+
+        const content = document.createElement("div");
+        content.className = "output-file-content";
+
+        if (file.type === "text") {
+          const pre = document.createElement("pre");
+          pre.textContent = file.content;
+          content.appendChild(pre);
+        } else if (file.type === "image") {
+          const img = document.createElement("img");
+          img.src = file.data_uri;
+          img.alt = file.name;
+          content.appendChild(img);
+        } else if (file.type === "pdf") {
+          const iframe = document.createElement("iframe");
+          iframe.src = file.data_uri;
+          content.appendChild(iframe);
+        } else if (file.type === "xlsx") {
+          renderXlsx(content, file.data_b64);
+        } else if (file.type === "binary") {
+          const a = document.createElement("a");
+          a.className = "download-link";
+          a.href = file.data_uri;
+          a.download = file.name;
+          a.textContent = "Download " + file.name;
+          content.appendChild(a);
+        } else if (file.type === "error") {
+          const pre = document.createElement("pre");
+          pre.textContent = file.content;
+          pre.style.color = "var(--red)";
+          content.appendChild(pre);
+        }
+
+        fileDiv.appendChild(content);
+        container.appendChild(fileDiv);
+      }
+    }
+
+    // ---- XLSX rendering via SheetJS ----
+    function renderXlsx(container, b64Data) {
+      try {
+        const raw = Uint8Array.from(atob(b64Data), c => c.charCodeAt(0));
+        const wb = XLSX.read(raw, { type: "array" });
+
+        for (let i = 0; i < wb.SheetNames.length; i++) {
+          const sheetName = wb.SheetNames[i];
+          const ws = wb.Sheets[sheetName];
+
+          if (wb.SheetNames.length > 1) {
+            const sheetLabel = document.createElement("div");
+            sheetLabel.style.cssText =
+              "font-weight:600; font-size:0.8rem; color:#b0aea5; margin-top:0.5rem; margin-bottom:0.25rem;";
+            sheetLabel.textContent = "Sheet: " + sheetName;
+            container.appendChild(sheetLabel);
+          }
+
+          const htmlStr = XLSX.utils.sheet_to_html(ws, { editable: false });
+          const wrapper = document.createElement("div");
+          wrapper.innerHTML = htmlStr;
+          container.appendChild(wrapper);
+        }
+      } catch (err) {
+        container.textContent = "Error rendering spreadsheet: " + err.message;
+      }
+    }
+
+    // ---- Grades ----
+    function renderGrades(run) {
+      const section = document.getElementById("grades-section");
+      const content = document.getElementById("grades-content");
+
+      if (!run.grading) {
+        section.style.display = "none";
+        return;
+      }
+
+      const grading = run.grading;
+      section.style.display = "block";
+      // Reset to collapsed
+      content.classList.remove("open");
+      document.getElementById("grades-arrow").classList.remove("open");
+
+      const summary = grading.summary || {};
+      const expectations = grading.expectations || [];
+
+      let html = '<div style="padding: 1rem;">';
+
+      // Summary line
+      const passRate = summary.pass_rate != null
+        ? Math.round(summary.pass_rate * 100) + "%"
+        : "?";
+      const badgeClass = summary.pass_rate >= 0.8 ? "grade-pass" : summary.pass_rate >= 0.5 ? "" : "grade-fail";
+      html += '<div class="grades-summary">';
+      html += '<span class="grade-badge ' + badgeClass + '">' + passRate + '</span>';
+      html += '<span>' + (summary.passed || 0) + ' passed, ' + (summary.failed || 0) + ' failed of ' + (summary.total || 0) + '</span>';
+      html += '</div>';
+
+      // Assertions list
+      html += '<ul class="assertion-list">';
+      for (const exp of expectations) {
+        const statusClass = exp.passed ? "pass" : "fail";
+        const statusIcon = exp.passed ? "\u2713" : "\u2717";
+        html += '<li class="assertion-item">';
+        html += '<span class="assertion-status ' + statusClass + '">' + statusIcon + '</span>';
+        html += '<span>' + escapeHtml(exp.text) + '</span>';
+        if (exp.evidence) {
+          html += '<div class="assertion-evidence">' + escapeHtml(exp.evidence) + '</div>';
+        }
+        html += '</li>';
+      }
+      html += '</ul>';
+
+      html += '</div>';
+      content.innerHTML = html;
+    }
+
+    function toggleGrades() {
+      const content = document.getElementById("grades-content");
+      const arrow = document.getElementById("grades-arrow");
+      content.classList.toggle("open");
+      arrow.classList.toggle("open");
+    }
+
+    // ---- Previous outputs (collapsible) ----
+    function renderPrevOutputs(run) {
+      const section = document.getElementById("prev-outputs-section");
+      const content = document.getElementById("prev-outputs-content");
+      const prevOutputs = (EMBEDDED_DATA.previous_outputs || {})[run.id];
+
+      if (!prevOutputs || prevOutputs.length === 0) {
+        section.style.display = "none";
+        return;
+      }
+
+      section.style.display = "block";
+      // Reset to collapsed
+      content.classList.remove("open");
+      document.getElementById("prev-outputs-arrow").classList.remove("open");
+
+      // Render the files into the content area
+      content.innerHTML = "";
+      const wrapper = document.createElement("div");
+      wrapper.style.padding = "1rem";
+
+      for (const file of prevOutputs) {
+        const fileDiv = document.createElement("div");
+        fileDiv.className = "output-file";
+
+        const header = document.createElement("div");
+        header.className = "output-file-header";
+        const nameSpan = document.createElement("span");
+        nameSpan.textContent = file.name;
+        header.appendChild(nameSpan);
+        const dlBtn = document.createElement("a");
+        dlBtn.className = "dl-btn";
+        dlBtn.textContent = "Download";
+        dlBtn.download = file.name;
+        dlBtn.href = getDownloadUri(file);
+        header.appendChild(dlBtn);
+        fileDiv.appendChild(header);
+
+        const fc = document.createElement("div");
+        fc.className = "output-file-content";
+
+        if (file.type === "text") {
+          const pre = document.createElement("pre");
+          pre.textContent = file.content;
+          fc.appendChild(pre);
+        } else if (file.type === "image") {
+          const img = document.createElement("img");
+          img.src = file.data_uri;
+          img.alt = file.name;
+          fc.appendChild(img);
+        } else if (file.type === "pdf") {
+          const iframe = document.createElement("iframe");
+          iframe.src = file.data_uri;
+          fc.appendChild(iframe);
+        } else if (file.type === "xlsx") {
+          renderXlsx(fc, file.data_b64);
+        } else if (file.type === "binary") {
+          const a = document.createElement("a");
+          a.className = "download-link";
+          a.href = file.data_uri;
+          a.download = file.name;
+          a.textContent = "Download " + file.name;
+          fc.appendChild(a);
+        }
+
+        fileDiv.appendChild(fc);
+        wrapper.appendChild(fileDiv);
+      }
+
+      content.appendChild(wrapper);
+    }
+
+    function togglePrevOutputs() {
+      const content = document.getElementById("prev-outputs-content");
+      const arrow = document.getElementById("prev-outputs-arrow");
+      content.classList.toggle("open");
+      arrow.classList.toggle("open");
+    }
+
+    // ---- Feedback (saved to server -> feedback.json) ----
+    function saveCurrentFeedback() {
+      const run = EMBEDDED_DATA.runs[currentIndex];
+      const text = document.getElementById("feedback").value;
+
+      if (text.trim() === "") {
+        delete feedbackMap[run.id];
+      } else {
+        feedbackMap[run.id] = text;
+      }
+
+      // Build reviews array from map
+      const reviews = [];
+      for (const [run_id, feedback] of Object.entries(feedbackMap)) {
+        if (feedback.trim()) {
+          reviews.push({ run_id, feedback, timestamp: new Date().toISOString() });
+        }
+      }
+
+      fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reviews, status: "in_progress" }),
+      }).then(() => {
+        document.getElementById("feedback-status").textContent = "Saved";
+      }).catch(() => {
+        // Static mode or server unavailable — no-op on auto-save,
+        // feedback will be downloaded on final submit
+        document.getElementById("feedback-status").textContent = "Will download on submit";
+      });
+    }
+
+    // ---- Done ----
+    function showDoneDialog() {
+      // Save current textarea to feedbackMap (but don't POST yet)
+      const run = EMBEDDED_DATA.runs[currentIndex];
+      const text = document.getElementById("feedback").value;
+      if (text.trim() === "") {
+        delete feedbackMap[run.id];
+      } else {
+        feedbackMap[run.id] = text;
+      }
+
+      // POST once with status: complete — include ALL runs so the model
+      // can distinguish "no feedback" (looks good) from "not reviewed"
+      const reviews = [];
+      const ts = new Date().toISOString();
+      for (const r of EMBEDDED_DATA.runs) {
+        reviews.push({ run_id: r.id, feedback: feedbackMap[r.id] || "", timestamp: ts });
+      }
+      const payload = JSON.stringify({ reviews, status: "complete" }, null, 2);
+      fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+      }).then(() => {
+        document.getElementById("done-overlay").classList.add("visible");
+      }).catch(() => {
+        // Server not available (static mode) — download as file
+        const blob = new Blob([payload], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "feedback.json";
+        a.click();
+        URL.revokeObjectURL(url);
+        document.getElementById("done-overlay").classList.add("visible");
+      });
+    }
+
+    function closeDoneDialog() {
+      // Reset status back to in_progress
+      saveCurrentFeedback();
+      document.getElementById("done-overlay").classList.remove("visible");
+    }
+
+    // ---- Toast ----
+    function showToast(message) {
+      const toast = document.getElementById("toast");
+      toast.textContent = message;
+      toast.classList.add("visible");
+      setTimeout(() => toast.classList.remove("visible"), 2000);
+    }
+
+    // ---- Keyboard nav ----
+    document.addEventListener("keydown", (e) => {
+      // Don't capture when typing in textarea
+      if (e.target.tagName === "TEXTAREA") return;
+
+      if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+        e.preventDefault();
+        navigate(-1);
+      } else if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+        e.preventDefault();
+        navigate(1);
+      }
+    });
+
+    // ---- Util ----
+    function getDownloadUri(file) {
+      if (file.data_uri) return file.data_uri;
+      if (file.data_b64) return "data:application/octet-stream;base64," + file.data_b64;
+      if (file.type === "text") return "data:text/plain;charset=utf-8," + encodeURIComponent(file.content);
+      return "#";
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement("div");
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // ---- View switching ----
+    function switchView(view) {
+      document.querySelectorAll(".view-tab").forEach(t => t.classList.remove("active"));
+      document.querySelectorAll(".view-panel").forEach(p => p.classList.remove("active"));
+      document.querySelector(`[onclick="switchView('${view}')"]`).classList.add("active");
+      document.getElementById("panel-" + view).classList.add("active");
+    }
+
+    // ---- Benchmark rendering ----
+    function renderBenchmark() {
+      const data = EMBEDDED_DATA.benchmark;
+      if (!data) return;
+
+      // Show the tabs
+      document.getElementById("view-tabs").style.display = "flex";
+
+      const container = document.getElementById("benchmark-content");
+      const summary = data.run_summary || {};
+      const metadata = data.metadata || {};
+      const notes = data.notes || [];
+
+      let html = "";
+
+      // Header
+      html += "<h2 style='font-family: Poppins, sans-serif; margin-bottom: 0.5rem;'>Benchmark Results</h2>";
+      html += "<p style='color: var(--text-muted); font-size: 0.875rem; margin-bottom: 1.25rem;'>";
+      if (metadata.skill_name) html += "<strong>" + escapeHtml(metadata.skill_name) + "</strong> &mdash; ";
+      if (metadata.timestamp) html += metadata.timestamp + " &mdash; ";
+      if (metadata.evals_run) html += "Evals: " + metadata.evals_run.join(", ") + " &mdash; ";
+      html += (metadata.runs_per_configuration || "?") + " runs per configuration";
+      html += "</p>";
+
+      // Summary table
+      html += '<table class="benchmark-table">';
+
+      function fmtStat(stat, pct) {
+        if (!stat) return "—";
+        const suffix = pct ? "%" : "";
+        const m = pct ? (stat.mean * 100).toFixed(0) : stat.mean.toFixed(1);
+        const s = pct ? (stat.stddev * 100).toFixed(0) : stat.stddev.toFixed(1);
+        return m + suffix + " ± " + s + suffix;
+      }
+
+      function deltaClass(val) {
+        if (!val) return "";
+        const n = parseFloat(val);
+        if (n > 0) return "benchmark-delta-positive";
+        if (n < 0) return "benchmark-delta-negative";
+        return "";
+      }
+
+      // Discover config names dynamically (everything except "delta")
+      const configs = Object.keys(summary).filter(k => k !== "delta");
+      const configA = configs[0] || "config_a";
+      const configB = configs[1] || "config_b";
+      const labelA = configA.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+      const labelB = configB.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+      const a = summary[configA] || {};
+      const b = summary[configB] || {};
+      const delta = summary.delta || {};
+
+      html += "<thead><tr><th>Metric</th><th>" + escapeHtml(labelA) + "</th><th>" + escapeHtml(labelB) + "</th><th>Delta</th></tr></thead>";
+      html += "<tbody>";
+
+      html += "<tr><td><strong>Pass Rate</strong></td>";
+      html += "<td>" + fmtStat(a.pass_rate, true) + "</td>";
+      html += "<td>" + fmtStat(b.pass_rate, true) + "</td>";
+      html += '<td class="' + deltaClass(delta.pass_rate) + '">' + (delta.pass_rate || "—") + "</td></tr>";
+
+      // Time (only show row if data exists)
+      if (a.time_seconds || b.time_seconds) {
+        html += "<tr><td><strong>Time (s)</strong></td>";
+        html += "<td>" + fmtStat(a.time_seconds, false) + "</td>";
+        html += "<td>" + fmtStat(b.time_seconds, false) + "</td>";
+        html += '<td class="' + deltaClass(delta.time_seconds) + '">' + (delta.time_seconds ? delta.time_seconds + "s" : "—") + "</td></tr>";
+      }
+
+      // Tokens (only show row if data exists)
+      if (a.tokens || b.tokens) {
+        html += "<tr><td><strong>Tokens</strong></td>";
+        html += "<td>" + fmtStat(a.tokens, false) + "</td>";
+        html += "<td>" + fmtStat(b.tokens, false) + "</td>";
+        html += '<td class="' + deltaClass(delta.tokens) + '">' + (delta.tokens || "—") + "</td></tr>";
+      }
+
+      html += "</tbody></table>";
+
+      // Per-eval breakdown (if runs data available)
+      const runs = data.runs || [];
+      if (runs.length > 0) {
+        const evalIds = [...new Set(runs.map(r => r.eval_id))].sort((a, b) => a - b);
+
+        html += "<h3 style='font-family: Poppins, sans-serif; margin-bottom: 0.75rem;'>Per-Eval Breakdown</h3>";
+
+        const hasTime = runs.some(r => r.result && r.result.time_seconds != null);
+        const hasErrors = runs.some(r => r.result && r.result.errors > 0);
+
+        for (const evalId of evalIds) {
+          const evalRuns = runs.filter(r => r.eval_id === evalId);
+          const evalName = evalRuns[0] && evalRuns[0].eval_name ? evalRuns[0].eval_name : "Eval " + evalId;
+
+          html += "<h4 style='font-family: Poppins, sans-serif; margin: 1rem 0 0.5rem; color: var(--text);'>" + escapeHtml(evalName) + "</h4>";
+          html += '<table class="benchmark-table">';
+          html += "<thead><tr><th>Config</th><th>Run</th><th>Pass Rate</th>";
+          if (hasTime) html += "<th>Time (s)</th>";
+          if (hasErrors) html += "<th>Crashes During Execution</th>";
+          html += "</tr></thead>";
+          html += "<tbody>";
+
+          // Group by config and render with average rows
+          const configGroups = [...new Set(evalRuns.map(r => r.configuration))];
+          for (let ci = 0; ci < configGroups.length; ci++) {
+            const config = configGroups[ci];
+            const configRuns = evalRuns.filter(r => r.configuration === config);
+            if (configRuns.length === 0) continue;
+
+            const rowClass = ci === 0 ? "benchmark-row-with" : "benchmark-row-without";
+            const configLabel = config.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+
+            for (const run of configRuns) {
+              const r = run.result || {};
+              const prClass = r.pass_rate >= 0.8 ? "benchmark-delta-positive" : r.pass_rate < 0.5 ? "benchmark-delta-negative" : "";
+              html += '<tr class="' + rowClass + '">';
+              html += "<td>" + configLabel + "</td>";
+              html += "<td>" + run.run_number + "</td>";
+              html += '<td class="' + prClass + '">' + ((r.pass_rate || 0) * 100).toFixed(0) + "% (" + (r.passed || 0) + "/" + (r.total || 0) + ")</td>";
+              if (hasTime) html += "<td>" + (r.time_seconds != null ? r.time_seconds.toFixed(1) : "—") + "</td>";
+              if (hasErrors) html += "<td>" + (r.errors || 0) + "</td>";
+              html += "</tr>";
+            }
+
+            // Average row
+            const rates = configRuns.map(r => (r.result || {}).pass_rate || 0);
+            const avgRate = rates.reduce((a, b) => a + b, 0) / rates.length;
+            const avgPrClass = avgRate >= 0.8 ? "benchmark-delta-positive" : avgRate < 0.5 ? "benchmark-delta-negative" : "";
+            html += '<tr class="benchmark-row-avg ' + rowClass + '">';
+            html += "<td>" + configLabel + "</td>";
+            html += "<td>Avg</td>";
+            html += '<td class="' + avgPrClass + '">' + (avgRate * 100).toFixed(0) + "%</td>";
+            if (hasTime) {
+              const times = configRuns.map(r => (r.result || {}).time_seconds).filter(t => t != null);
+              html += "<td>" + (times.length ? (times.reduce((a, b) => a + b, 0) / times.length).toFixed(1) : "—") + "</td>";
+            }
+            if (hasErrors) html += "<td></td>";
+            html += "</tr>";
+          }
+          html += "</tbody></table>";
+
+          // Per-assertion detail for this eval
+          const runsWithExpectations = {};
+          for (const config of configGroups) {
+            runsWithExpectations[config] = evalRuns.filter(r => r.configuration === config && r.expectations && r.expectations.length > 0);
+          }
+          const hasAnyExpectations = Object.values(runsWithExpectations).some(runs => runs.length > 0);
+          if (hasAnyExpectations) {
+            // Collect all unique assertion texts across all configs
+            const allAssertions = [];
+            const seen = new Set();
+            for (const config of configGroups) {
+              for (const run of runsWithExpectations[config]) {
+                for (const exp of (run.expectations || [])) {
+                  if (!seen.has(exp.text)) {
+                    seen.add(exp.text);
+                    allAssertions.push(exp.text);
+                  }
+                }
+              }
+            }
+
+            html += '<table class="benchmark-table" style="margin-top: 0.5rem;">';
+            html += "<thead><tr><th>Assertion</th>";
+            for (const config of configGroups) {
+              const label = config.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+              html += "<th>" + escapeHtml(label) + "</th>";
+            }
+            html += "</tr></thead><tbody>";
+
+            for (const assertionText of allAssertions) {
+              html += "<tr><td>" + escapeHtml(assertionText) + "</td>";
+
+              for (const config of configGroups) {
+                html += "<td>";
+                for (const run of runsWithExpectations[config]) {
+                  const exp = (run.expectations || []).find(e => e.text === assertionText);
+                  if (exp) {
+                    const cls = exp.passed ? "benchmark-delta-positive" : "benchmark-delta-negative";
+                    const icon = exp.passed ? "\u2713" : "\u2717";
+                    html += '<span class="' + cls + '" title="Run ' + run.run_number + ': ' + escapeHtml(exp.evidence || "") + '">' + icon + "</span> ";
+                  } else {
+                    html += "— ";
+                  }
+                }
+                html += "</td>";
+              }
+              html += "</tr>";
+            }
+            html += "</tbody></table>";
+          }
+        }
+      }
+
+      // Notes
+      if (notes.length > 0) {
+        html += '<div class="benchmark-notes">';
+        html += "<h3>Analysis Notes</h3>";
+        html += "<ul>";
+        for (const note of notes) {
+          html += "<li>" + escapeHtml(note) + "</li>";
+        }
+        html += "</ul></div>";
+      }
+
+      container.innerHTML = html;
+    }
+
+    // ---- Start ----
+    init();
+    renderBenchmark();
+  </script>
+</body>
+</html>

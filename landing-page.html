@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TradeForge — Plataforma de Trading Automatizado</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:       #080C12;
+    --surface:  #0F1520;
+    --border:   #1C2535;
+    --amber:    #F5A623;
+    --amber-dim:#7A4F08;
+    --blue:     #3B82F6;
+    --text:     #E8EDF8;
+    --muted:    #4A5A72;
+    --muted-hi: #7A8FA8;
+    --red:      #EF4444;
+    --green:    #22C55E;
+    --grotesk:  'Space Grotesk', system-ui, sans-serif;
+    --mono:     'JetBrains Mono', monospace;
+    --r:        2px;
+    --u:        8px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 13px; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--grotesk);
+    font-weight: 300;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ─── NAV ─── */
+  nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 24px 56px;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 100;
+  }
+
+  .nav-logo {
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    color: var(--text);
+  }
+
+  .nav-logo span { color: var(--amber); }
+
+  .nav-links {
+    display: flex;
+    gap: 36px;
+    list-style: none;
+  }
+
+  .nav-links a {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+
+  .nav-links a:hover { color: var(--text); }
+
+  .nav-cta {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--bg);
+    background: var(--amber);
+    border: none;
+    padding: calc(var(--u) + 2px) calc(var(--u) * 2.5);
+    border-radius: var(--r);
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+
+  .nav-cta:hover { opacity: 0.88; }
+
+  /* ─── HERO ─── */
+  .hero {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    min-height: calc(100vh - 65px);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .hero-left {
+    padding: 72px 56px 72px;
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  .hero-eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 56px;
+  }
+
+  .eyebrow-tag {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--amber);
+    border: 1px solid var(--amber-dim);
+    padding: 3px 10px;
+    border-radius: var(--r);
+  }
+
+  .eyebrow-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .hero-headline {
+    font-family: var(--grotesk);
+    font-size: 72px;
+    font-weight: 700;
+    line-height: 0.95;
+    letter-spacing: -0.03em;
+    color: var(--text);
+    margin-bottom: 32px;
+  }
+
+  .hero-headline .amber { color: var(--amber); }
+
+  .hero-sub {
+    font-family: var(--grotesk);
+    font-size: 16px;
+    font-weight: 300;
+    color: var(--muted-hi);
+    line-height: 1.65;
+    max-width: 380px;
+    margin-bottom: 48px;
+  }
+
+  .hero-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 0;
+  }
+
+  .btn-primary {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--bg);
+    background: var(--amber);
+    border: none;
+    padding: 14px 32px;
+    border-radius: var(--r);
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .btn-primary:hover { opacity: 0.88; }
+
+  .btn-ghost {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted-hi);
+    background: none;
+    border: 1px solid var(--border);
+    padding: 13px 24px;
+    border-radius: var(--r);
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .btn-ghost:hover { border-color: var(--muted-hi); color: var(--text); }
+
+  /* metricas no rodape do hero */
+  .hero-metrics {
+    display: flex;
+    gap: 40px;
+    padding-top: 48px;
+    border-top: 1px solid var(--border);
+  }
+
+  .metric-item { display: flex; flex-direction: column; gap: 4px; }
+
+  .metric-val {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    color: var(--text);
+  }
+
+  .metric-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  /* ─── TERMINAL PREVIEW (hero direito) ─── */
+  .hero-right {
+    background: var(--surface);
+    padding: 40px 48px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    overflow: hidden;
+  }
+
+  .terminal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 0;
+  }
+
+  .terminal-title {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .terminal-live {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    color: var(--green);
+  }
+
+  .live-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: pulsar 2s infinite;
+  }
+
+  @keyframes pulsar {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.25; }
+  }
+
+  /* tabela de posicoes */
+  .posicoes-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 0;
+  }
+
+  .posicoes-table thead th {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-align: left;
+    padding: 16px 0 12px;
+    border-bottom: 1px solid var(--border);
+    font-weight: 400;
+  }
+
+  .posicoes-table thead th:not(:first-child) { text-align: right; }
+
+  .posicoes-table tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.1s;
+  }
+
+  .posicoes-table tbody tr:hover { background: rgba(255,255,255,0.02); }
+
+  .posicoes-table tbody td {
+    padding: 14px 0;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 300;
+    vertical-align: middle;
+  }
+
+  .posicoes-table tbody td:not(:first-child) { text-align: right; }
+
+  .par-nome { color: var(--text); font-weight: 500; }
+  .par-tipo {
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    padding: 2px 6px;
+    border-radius: var(--r);
+    margin-left: 8px;
+    font-weight: 400;
+  }
+
+  .tipo-long { background: rgba(34,197,94,0.12); color: var(--green); }
+  .tipo-short { background: rgba(239,68,68,0.12); color: var(--red); }
+
+  .pnl-pos { color: var(--green); }
+  .pnl-neg { color: var(--red); }
+  .pnl-neu { color: var(--muted-hi); }
+
+  .status-dot {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .status-dot::before {
+    content: '';
+    display: inline-block;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+  }
+
+  .status-ativo::before { background: var(--green); }
+  .status-aguard::before { background: var(--amber); }
+
+  /* mini grafico de equity */
+  .equity-panel {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 20px 20px 12px;
+    margin-top: 24px;
+  }
+
+  .equity-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 16px;
+  }
+
+  .equity-title {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .equity-val {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--green);
+  }
+
+  .equity-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    height: 64px;
+  }
+
+  .eq-bar {
+    flex: 1;
+    border-radius: 1px 1px 0 0;
+    background: var(--border);
+  }
+
+  .eq-bar.pos { background: rgba(34,197,94,0.35); }
+  .eq-bar.dest { background: var(--green); }
+  .eq-bar.neg { background: rgba(239,68,68,0.25); }
+
+  .equity-xaxis {
+    display: flex;
+    gap: 4px;
+    margin-top: 6px;
+  }
+
+  .eq-xlabel {
+    flex: 1;
+    font-family: var(--mono);
+    font-size: 8px;
+    color: var(--muted);
+    text-align: center;
+  }
+
+  /* sinais recentes */
+  .sinais-strip {
+    display: flex;
+    gap: 8px;
+    margin-top: 20px;
+    overflow: hidden;
+  }
+
+  .sinal-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 8px 12px;
+    white-space: nowrap;
+  }
+
+  .sinal-icon {
+    font-family: var(--mono);
+    font-size: 8px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    padding: 2px 6px;
+    border-radius: 1px;
+  }
+
+  .sinal-compra { background: rgba(34,197,94,0.15); color: var(--green); }
+  .sinal-venda { background: rgba(239,68,68,0.15); color: var(--red); }
+
+  .sinal-par {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  .sinal-preco {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--muted-hi);
+  }
+
+  /* ─── COMO FUNCIONA — lista assimetrica, nao 3 cards ─── */
+  .como-funciona {
+    padding: 96px 56px;
+    display: grid;
+    grid-template-columns: 3fr 5fr;
+    gap: 80px;
+    border-bottom: 1px solid var(--border);
+    align-items: start;
+  }
+
+  .como-left {
+    position: sticky;
+    top: 96px;
+  }
+
+  .secao-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--amber);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .secao-label::after {
+    content: '';
+    display: block;
+    height: 1px;
+    width: 32px;
+    background: var(--amber-dim);
+  }
+
+  .secao-titulo {
+    font-family: var(--grotesk);
+    font-size: 40px;
+    font-weight: 700;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    margin-bottom: 20px;
+  }
+
+  .secao-desc {
+    font-family: var(--grotesk);
+    font-size: 14px;
+    font-weight: 300;
+    color: var(--muted-hi);
+    line-height: 1.7;
+  }
+
+  .steps-lista {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .step {
+    display: grid;
+    grid-template-columns: 56px 1fr;
+    gap: 32px;
+    padding: 40px 0;
+    border-bottom: 1px solid var(--border);
+    align-items: start;
+  }
+
+  .step:first-child { padding-top: 0; }
+
+  .step-num {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    padding-top: 4px;
+  }
+
+  .step-corpo h3 {
+    font-family: var(--grotesk);
+    font-size: 20px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    color: var(--text);
+    margin-bottom: 10px;
+  }
+
+  .step-corpo p {
+    font-family: var(--grotesk);
+    font-size: 14px;
+    font-weight: 300;
+    color: var(--muted-hi);
+    line-height: 1.7;
+  }
+
+  .step-tag {
+    display: inline-flex;
+    margin-top: 12px;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    color: var(--amber);
+    border: 1px solid var(--amber-dim);
+    padding: 3px 8px;
+    border-radius: var(--r);
+  }
+
+  /* ─── NUMEROS ─── */
+  .numeros {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .numero-item {
+    padding: 64px 48px;
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .numero-item:last-child { border-right: none; }
+
+  .numero-val {
+    font-family: var(--mono);
+    font-size: 44px;
+    font-weight: 500;
+    letter-spacing: -0.03em;
+    color: var(--text);
+    line-height: 1;
+  }
+
+  .numero-val .amber { color: var(--amber); }
+
+  .numero-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  .numero-desc {
+    font-family: var(--grotesk);
+    font-size: 13px;
+    font-weight: 300;
+    color: var(--muted-hi);
+    line-height: 1.5;
+    margin-top: 4px;
+  }
+
+  /* ─── CTA FINAL ─── */
+  .cta-final {
+    padding: 96px 56px;
+    display: grid;
+    grid-template-columns: 5fr 3fr;
+    gap: 80px;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .cta-titulo {
+    font-family: var(--grotesk);
+    font-size: 52px;
+    font-weight: 700;
+    line-height: 0.98;
+    letter-spacing: -0.03em;
+    color: var(--text);
+  }
+
+  .cta-titulo .amber { color: var(--amber); }
+
+  .cta-right {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .cta-note {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+
+  /* ─── FOOTER ─── */
+  footer {
+    padding: 32px 56px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .footer-logo {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+    letter-spacing: -0.01em;
+  }
+
+  .footer-logo span { color: var(--amber); }
+
+  .footer-links {
+    display: flex;
+    gap: 32px;
+    list-style: none;
+  }
+
+  .footer-links a {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+
+  .footer-links a:hover { color: var(--muted-hi); }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">trade<span>forge</span></div>
+  <ul class="nav-links">
+    <li><a href="#">Produto</a></li>
+    <li><a href="#">Estrategias</a></li>
+    <li><a href="#">Precos</a></li>
+    <li><a href="#">Docs</a></li>
+  </ul>
+  <button class="nav-cta">Criar conta</button>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-left">
+    <div>
+      <div class="hero-eyebrow">
+        <span class="eyebrow-tag">Beta aberto</span>
+        <span class="eyebrow-label">Trading automatizado para B3 e cripto</span>
+      </div>
+
+      <h1 class="hero-headline">
+        Opera.<br>
+        Monitora.<br>
+        <span class="amber">Lucra.</span>
+      </h1>
+
+      <p class="hero-sub">
+        O TradeForge executa suas estrategias 24h por dia, com backtest real, sinais em tempo real e controle total na palma da mao.
+      </p>
+
+      <div class="hero-actions">
+        <button class="btn-primary">Comecar agora</button>
+        <button class="btn-ghost">Ver demo ao vivo</button>
+      </div>
+    </div>
+
+    <div class="hero-metrics">
+      <div class="metric-item">
+        <span class="metric-val">98.7%</span>
+        <span class="metric-label">Uptime do sistema</span>
+      </div>
+      <div class="metric-item">
+        <span class="metric-val">14ms</span>
+        <span class="metric-label">Latencia media</span>
+      </div>
+      <div class="metric-item">
+        <span class="metric-val">200+</span>
+        <span class="metric-label">Pares disponiveis</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="hero-right">
+    <div class="terminal-header">
+      <span class="terminal-title">Posicoes abertas</span>
+      <span class="terminal-live">
+        <span class="live-dot"></span>
+        Ao vivo
+      </span>
+    </div>
+
+    <table class="posicoes-table">
+      <thead>
+        <tr>
+          <th>Par</th>
+          <th>Entrada</th>
+          <th>Atual</th>
+          <th>P&L</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <span class="par-nome">BTC/USDT</span>
+            <span class="par-tipo tipo-long">LONG</span>
+          </td>
+          <td>$42.380</td>
+          <td>$43.120</td>
+          <td class="pnl-pos">+1.74%</td>
+          <td><span class="status-dot status-ativo">Ativo</span></td>
+        </tr>
+        <tr>
+          <td>
+            <span class="par-nome">ETH/USDT</span>
+            <span class="par-tipo tipo-short">SHORT</span>
+          </td>
+          <td>$2.640</td>
+          <td>$2.598</td>
+          <td class="pnl-pos">+1.59%</td>
+          <td><span class="status-dot status-ativo">Ativo</span></td>
+        </tr>
+        <tr>
+          <td>
+            <span class="par-nome">SOL/USDT</span>
+            <span class="par-tipo tipo-long">LONG</span>
+          </td>
+          <td>$98.20</td>
+          <td>$96.40</td>
+          <td class="pnl-neg">-1.83%</td>
+          <td><span class="status-dot status-ativo">Ativo</span></td>
+        </tr>
+        <tr>
+          <td>
+            <span class="par-nome">ARB/USDT</span>
+            <span class="par-tipo tipo-long">LONG</span>
+          </td>
+          <td>$1.124</td>
+          <td>$1.124</td>
+          <td class="pnl-neu">0.00%</td>
+          <td><span class="status-dot status-aguard">Aguardando</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="equity-panel">
+      <div class="equity-header">
+        <span class="equity-title">Equity — ultimas 7 semanas</span>
+        <span class="equity-val">+18.4%</span>
+      </div>
+      <div class="equity-bars">
+        <div class="eq-bar pos" style="height:40%"></div>
+        <div class="eq-bar pos" style="height:55%"></div>
+        <div class="eq-bar neg" style="height:30%"></div>
+        <div class="eq-bar pos" style="height:65%"></div>
+        <div class="eq-bar pos" style="height:72%"></div>
+        <div class="eq-bar neg" style="height:25%"></div>
+        <div class="eq-bar dest" style="height:88%"></div>
+      </div>
+      <div class="equity-xaxis">
+        <span class="eq-xlabel">S1</span>
+        <span class="eq-xlabel">S2</span>
+        <span class="eq-xlabel">S3</span>
+        <span class="eq-xlabel">S4</span>
+        <span class="eq-xlabel">S5</span>
+        <span class="eq-xlabel">S6</span>
+        <span class="eq-xlabel">S7</span>
+      </div>
+    </div>
+
+    <div class="sinais-strip">
+      <div class="sinal-chip">
+        <span class="sinal-icon sinal-compra">COMPRA</span>
+        <span class="sinal-par">BNB/USDT</span>
+        <span class="sinal-preco">$312.40</span>
+      </div>
+      <div class="sinal-chip">
+        <span class="sinal-icon sinal-venda">VENDA</span>
+        <span class="sinal-par">MATIC/USDT</span>
+        <span class="sinal-preco">$0.892</span>
+      </div>
+      <div class="sinal-chip">
+        <span class="sinal-icon sinal-compra">COMPRA</span>
+        <span class="sinal-par">AVAX/USDT</span>
+        <span class="sinal-preco">$38.10</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- COMO FUNCIONA — lista assimetrica -->
+<section class="como-funciona">
+  <div class="como-left">
+    <p class="secao-label">Como funciona</p>
+    <h2 class="secao-titulo">De estrategia a execucao em minutos</h2>
+    <p class="secao-desc">
+      Configure uma vez. O robo opera enquanto voce vive.
+    </p>
+  </div>
+
+  <ol class="steps-lista">
+    <div class="step">
+      <span class="step-num">01 —</span>
+      <div class="step-corpo">
+        <h3>Configure sua estrategia</h3>
+        <p>Escolha entre estrategias pre-configuradas ou crie a sua. Defina pares, gerenciamento de risco, take profit e stop loss com precisao.</p>
+        <span class="step-tag">Backtest incluido</span>
+      </div>
+    </div>
+    <div class="step">
+      <span class="step-num">02 —</span>
+      <div class="step-corpo">
+        <h3>Conecte sua corretora</h3>
+        <p>Integracao direta via API com Binance, Bybit e outras. Suas chaves ficam criptografadas — nunca armazenamos acesso a saques.</p>
+        <span class="step-tag">Zero custodia</span>
+      </div>
+    </div>
+    <div class="step">
+      <span class="step-num">03 —</span>
+      <div class="step-corpo">
+        <h3>Ative e monitore</h3>
+        <p>O sistema entra e sai de posicoes automaticamente. Voce acompanha em tempo real pelo dashboard e recebe alertas via Telegram.</p>
+        <span class="step-tag">Alertas em tempo real</span>
+      </div>
+    </div>
+    <div class="step">
+      <span class="step-num">04 —</span>
+      <div class="step-corpo">
+        <h3>Analise e otimize</h3>
+        <p>Relatorios detalhados de performance, historico de operacoes e sugestoes de otimizacao baseadas nos seus resultados reais.</p>
+        <span class="step-tag">Relatorios detalhados</span>
+      </div>
+    </div>
+  </ol>
+</section>
+
+<!-- NUMEROS -->
+<section class="numeros">
+  <div class="numero-item">
+    <div class="numero-val">R$<span class="amber">2.4M</span></div>
+    <div class="numero-label">Volume operado</div>
+    <div class="numero-desc">Nos ultimos 30 dias pela plataforma</div>
+  </div>
+  <div class="numero-item">
+    <div class="numero-val"><span class="amber">14ms</span></div>
+    <div class="numero-label">Latencia de execucao</div>
+    <div class="numero-desc">Da decisao ao preenchimento da ordem</div>
+  </div>
+  <div class="numero-item">
+    <div class="numero-val"><span class="amber">98.7</span>%</div>
+    <div class="numero-label">Uptime garantido</div>
+    <div class="numero-desc">Com monitoramento continuo 24/7</div>
+  </div>
+  <div class="numero-item">
+    <div class="numero-val"><span class="amber">0</span></div>
+    <div class="numero-label">Custodia de ativos</div>
+    <div class="numero-desc">Seus fundos ficam na sua corretora</div>
+  </div>
+</section>
+
+<!-- CTA FINAL -->
+<section class="cta-final">
+  <h2 class="cta-titulo">
+    Pronto para operar<br>com <span class="amber">precisao</span><br>cirurgica?
+  </h2>
+  <div class="cta-right">
+    <button class="btn-primary" style="width: fit-content;">Criar conta gratis</button>
+    <p class="cta-note">
+      Sem cartao de credito.<br>
+      7 dias de teste completo.<br>
+      Cancele a qualquer momento.
+    </p>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">trade<span>forge</span></div>
+  <ul class="footer-links">
+    <li><a href="#">Termos</a></li>
+    <li><a href="#">Privacidade</a></li>
+    <li><a href="#">Docs</a></li>
+    <li><a href="#">Suporte</a></li>
+  </ul>
+</footer>
+
+</body>
+</html>
