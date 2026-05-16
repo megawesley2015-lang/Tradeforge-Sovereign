@@ -244,7 +244,6 @@ export default function Dashboard() {
               </select>
               <span className="text-xs font-mono text-[#FF6B35] ml-2 bg-[#FF6B35]/10 px-2 py-1 rounded">${livePrice}</span>
             </div>
-          </div>
           <button
             onClick={toggleBot}
             disabled={botToggling}
