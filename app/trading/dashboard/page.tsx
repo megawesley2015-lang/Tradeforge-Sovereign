@@ -1,15 +1,14 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
-import { Wallet, Activity, TrendingUp, ShieldAlert, Play, Square, Coins, History, Lock, Settings, BarChart2, DollarSign, Radio, Tv2, type LucideProps } from 'lucide-react';
-import type { ComponentType } from 'react';
+import { Wallet, Activity, TrendingUp, ShieldAlert, Play, Square, Coins, History, Lock, Settings, BarChart2, DollarSign, Radio, Tv2, type LucideIcon } from 'lucide-react';
 import Link from 'next/link';
 import { StatCard } from '@/components/trading/StatCard';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 
 const supabase = getSupabaseBrowserClient();
 
-// Nav items defined outside component so Turbopack doesn't see JSX inside array literals
-const NAV_ITEMS: { href: string; Icon: ComponentType<LucideProps>; label: string }[] = [
+// Nav items defined outside component so Turbopack does not see JSX inside array literals
+const NAV_ITEMS: { href: string; Icon: LucideIcon; label: string }[] = [
   { href: '/trading/signals',        Icon: Radio,       label: 'Sinais'    },
   { href: '/trading/backtest',        Icon: BarChart2,   label: 'Backtest'  },
   { href: '/trading/backtest-basket', Icon: BarChart2,   label: 'Basket'    },
@@ -48,7 +47,7 @@ export default function Dashboard() {
   const [drawdown, setDrawdown] = useState(0);
   const [mounted, setMounted] = useState(false);
 
-  // ── Sincroniza estado do bot com Supabase ────────────────────
+  // -- Sincroniza estado do bot com Supabase --------------------
   const toggleBot = useCallback(async () => {
     setBotToggling(true);
     try {
@@ -67,7 +66,7 @@ export default function Dashboard() {
 
   const refreshGlobalData = useCallback(async () => {
     try {
-      // Lê o estado real do bot do Supabase
+      // Le o estado real do bot do Supabase
       const { data: botData } = await supabase
         .from('bot_status')
         .select('enabled')
@@ -215,10 +214,10 @@ export default function Dashboard() {
                   PAPER
                 </span>
               </div>
-              <p className="text-gray-500 text-xs mt-0.5">Quant Engine v3.0 · MACD + BB + ADX · Simulação</p>
+              <p className="text-gray-500 text-xs mt-0.5">Quant Engine v3.0 - MACD + BB + ADX - Simulacao</p>
             </div>
 
-            {/* Nav links — scroll horizontal no mobile */}
+            {/* Nav links - scroll horizontal no mobile */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full scrollbar-none">
               {NAV_ITEMS.map(({ href, Icon, label }) => (
                 <Link key={href} href={href}
