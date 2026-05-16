@@ -1,8 +1,8 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
-import { Wallet, Activity, TrendingUp, ShieldAlert, Play, Square, Coins, History, Lock, Settings, BarChart2, DollarSign, Radio, Tv2, type LucideIcon } from 'lucide-react';
+import { Activity, TrendingUp, ShieldAlert, Play, Square, Coins, History, Settings, BarChart2, DollarSign, Radio, Tv2, type LucideIcon } from 'lucide-react';
 import Link from 'next/link';
-import { StatCard } from '@/components/trading/StatCard';
+import '@/components/dashboard/dashboard.css';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 
 const supabase = getSupabaseBrowserClient();
@@ -22,16 +22,16 @@ export default function Dashboard() {
   const [botToggling, setBotToggling] = useState(false);
   const [currentSignal, setCurrentSignal] = useState('NEUTRAL');
   const [logs, setLogs] = useState<string[]>(['Sistemas prontos. Aguardando ativacao...']);
-  
+
   const [balance, setBalance] = useState(1000.00);
   const [peakBalance, setPeakBalance] = useState(1000.00);
   const [accountStatus, setAccountStatus] = useState('ACTIVE');
-  
+
   const [symbol, setSymbol] = useState('BTCUSDT');
-  const [livePrice, setLivePrice] = useState('0.00'); 
+  const [livePrice, setLivePrice] = useState('0.00');
   const [winRate, setWinRate] = useState('0%');
   const [tradeHistory, setTradeHistory] = useState<any[]>([]);
-  
+
   const [riskConfig, setRiskConfig] = useState({
     riskPerTrade: 1.0,
     stopLossPercent: 2.0
@@ -55,7 +55,7 @@ export default function Dashboard() {
       await supabase
         .from('bot_status')
         .update({ enabled: next, updated_at: new Date().toISOString(), updated_by: 'dashboard' })
-        .eq('enabled', isActive); // atualiza o registro singleton
+        .eq('enabled', isActive);
       setIsActive(next);
     } catch (err) {
       console.error('[Dashboard] Erro ao alterar bot_status:', err);
@@ -66,7 +66,6 @@ export default function Dashboard() {
 
   const refreshGlobalData = useCallback(async () => {
     try {
-      // Le o estado real do bot do Supabase
       const { data: botData } = await supabase
         .from('bot_status')
         .select('enabled')
@@ -89,9 +88,9 @@ export default function Dashboard() {
         .from('trades')
         .select('*')
         .order('created_at', { ascending: false });
-      
+
       if (tradesData) {
-        setTradeHistory(tradesData.slice(0, 10)); 
+        setTradeHistory(tradesData.slice(0, 10));
         const closedTrades = tradesData.filter((t: any) => t.status === 'CLOSED');
         if (closedTrades.length > 0) {
           const wins = closedTrades.filter((t: any) => t.pnl > 0).length;
@@ -126,7 +125,7 @@ export default function Dashboard() {
   }, [refreshGlobalData]);
 
   useEffect(() => {
-    const interval = setInterval(fetchPrice, 3000); 
+    const interval = setInterval(fetchPrice, 3000);
     return () => clearInterval(interval);
   }, [fetchPrice]);
 
@@ -191,199 +190,296 @@ export default function Dashboard() {
   useEffect(() => {
     let interval: NodeJS.Timeout | undefined;
     if (isActive) {
-      triggerBotCycle(); 
+      triggerBotCycle();
       interval = setInterval(() => triggerBotCycle(), 30000);
     }
     return () => { if (interval) clearInterval(interval); };
   }, [isActive, triggerBotCycle]);
 
-  if (!mounted) return <div className="min-h-screen bg-[#07070D]" />;
+  if (!mounted) return <div style={{ minHeight: '100vh', background: '#080C12' }} />;
+
+  const drawdownColor = drawdown > 7 ? 'red' : drawdown > 4 ? 'amber' : 'green';
+  const signalColor   = currentSignal === 'LONG' ? 'green' : currentSignal === 'SHORT' ? 'red' : 'amber';
+  const statusColor   = accountStatus === 'SAFE_MODE' ? 'red' : 'green';
 
   return (
-    <div className="min-h-screen bg-[#07070D] text-white p-8 font-sans">
-      <div className="max-w-7xl mx-auto">
-        
-        {/* Header */}
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-10">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full lg:w-auto">
-            <div className="shrink-0">
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl lg:text-3xl font-bold">TradeForge <span className="text-[#FF6B35]">Sovereign</span></h1>
-                <span className="flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-yellow-500/15 text-yellow-400 border border-yellow-500/30 animate-pulse">
-                  <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 inline-block"/>
-                  PAPER
-                </span>
-              </div>
-              <p className="text-gray-500 text-xs mt-0.5">Quant Engine v3.0 - MACD + BB + ADX - Simulacao</p>
-            </div>
+    <div className="dash-root">
 
-            {/* Nav links - scroll horizontal no mobile */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full scrollbar-none">
-              {NAV_ITEMS.map(({ href, Icon, label }) => (
-                <Link key={href} href={href}
-                  className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-[#FF6B35] border border-[#1F1F2E] hover:border-[#FF6B35] px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap shrink-0">
-                  <Icon size={13} /> {label}
-                </Link>
-              ))}
-            </div>
+      {/* ─── HEADER ─── */}
+      <header className="dash-header">
+        <div className="dash-header-left">
+          <div className="dash-logo">trade<span>forge</span></div>
+          <span className="dash-paper-badge">PAPER</span>
+          <nav className="dash-nav">
+            {NAV_ITEMS.map(({ href, Icon, label }) => (
+              <Link key={href} href={href} className="dash-nav-link">
+                <Icon size={11} /> {label}
+              </Link>
+            ))}
+          </nav>
+        </div>
+
+        <div className="dash-header-right">
+          <div className="dash-coin-selector">
+            <Coins size={14} className="dash-coin-icon" />
+            <select value={symbol} onChange={(e) => setSymbol(e.target.value)} className="dash-coin-select">
+              <option value="BTCUSDT">Bitcoin (BTC)</option>
+              <option value="ETHUSDT">Ethereum (ETH)</option>
+              <option value="SOLUSDT">Solana (SOL)</option>
+              <option value="BNBUSDT">BNB (BNB)</option>
+              <option value="XRPUSDT">Ripple (XRP)</option>
+              <option value="ADAUSDT">Cardano (ADA)</option>
+              <option value="DOGEUSDT">Dogecoin (DOGE)</option>
+              <option value="AVAXUSDT">Avalanche (AVAX)</option>
+              <option value="LINKUSDT">Chainlink (LINK)</option>
+              <option value="MATICUSDT">Polygon (MATIC)</option>
+              <option value="DOTUSDT">Polkadot (DOT)</option>
+            </select>
+            <span className="dash-coin-price">${livePrice}</span>
           </div>
-            <div className="flex items-center gap-3 bg-[#0F0F1A] border border-[#1F1F2E] p-2 rounded-xl">
-              <Coins size={18} className="text-[#FF6B35] ml-2" />
-              <select value={symbol} onChange={(e) => setSymbol(e.target.value)} className="bg-transparent outline-none text-sm font-bold cursor-pointer">
-                <option value="BTCUSDT">Bitcoin (BTC)</option>
-                <option value="ETHUSDT">Ethereum (ETH)</option>
-                <option value="SOLUSDT">Solana (SOL)</option>
-                <option value="BNBUSDT">BNB (BNB)</option>
-                <option value="XRPUSDT">Ripple (XRP)</option>
-                <option value="ADAUSDT">Cardano (ADA)</option>
-                <option value="DOGEUSDT">Dogecoin (DOGE)</option>
-                <option value="AVAXUSDT">Avalanche (AVAX)</option>
-                <option value="LINKUSDT">Chainlink (LINK)</option>
-                <option value="MATICUSDT">Polygon (MATIC)</option>
-                <option value="DOTUSDT">Polkadot (DOT)</option>
-              </select>
-              <span className="text-xs font-mono text-[#FF6B35] ml-2 bg-[#FF6B35]/10 px-2 py-1 rounded">${livePrice}</span>
-            </div>
+
           <button
             onClick={toggleBot}
             disabled={botToggling}
-            className={`px-5 py-3 rounded-xl transition-all flex items-center gap-2 font-bold text-sm disabled:opacity-60 ${
-              isActive ? 'bg-red-600 hover:bg-red-700' : 'bg-[#FF6B35] hover:bg-[#e55a2a]'
-            }`}
+            className={`dash-bot-btn ${isActive ? 'on' : 'off'}`}
           >
             {botToggling
-              ? <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"/>
-              : isActive ? <Square size={16} fill="currentColor"/> : <Play size={16} fill="currentColor"/>
+              ? <span className="dash-spinner" />
+              : isActive
+                ? <Square size={13} fill="currentColor" />
+                : <Play size={13} fill="currentColor" />
             }
-            {isActive ? 'PARAR BOT' : 'INICIAR BOT'}
+            {isActive ? 'Parar Bot' : 'Iniciar Bot'}
           </button>
         </div>
+      </header>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-          <StatCard label="Banca Atual" value={`$ ${balance.toFixed(2)}`} icon={<Wallet size={20}/>} />
-          <StatCard label="Pico da Banca" value={`$ ${peakBalance.toFixed(2)}`} icon={<TrendingUp size={20}/>} colorClass="text-purple-500" />
-          <StatCard label="Drawdown" value={`${drawdown.toFixed(1)}%`} icon={<ShieldAlert size={20}/>} colorClass={drawdown > 7 ? 'text-red-500' : drawdown > 4 ? 'text-yellow-500' : 'text-green-500'} />
-          <StatCard label="Sinal Atual" value={currentSignal} icon={<Activity size={20}/>} colorClass={currentSignal === 'LONG' ? 'text-green-500' : currentSignal === 'SHORT' ? 'text-red-500' : 'text-[#FF6B35]'} />
-          <StatCard label="Win Rate Real" value={winRate} icon={<Activity size={20}/>} colorClass="text-cyan-500" />
-          <StatCard label="Status" value={accountStatus === 'SAFE_MODE' ? 'SAFE MODE' : 'ATIVO'} icon={<Lock size={20}/>} colorClass={accountStatus === 'SAFE_MODE' ? 'text-red-500' : 'text-green-500'} />
+      {/* ─── METRIC STRIP ─── */}
+      <div className="dash-metrics">
+        <div className="dash-metric">
+          <span className="dash-metric-label">Banca Atual</span>
+          <span className="dash-metric-val">$ {balance.toFixed(2)}</span>
         </div>
-
-        {/* Indicadores ao vivo */}
-        {liveIndicators && (
-          <div className="flex items-center gap-4 mb-8 bg-[#0F0F1A] border border-[#1F1F2E] rounded-2xl px-6 py-3 text-xs font-mono">
-            <span className="text-gray-500">INDICADORES AO VIVO</span>
-            {liveIndicators.rsi && <span>RSI: <span className={`font-bold ${parseFloat(liveIndicators.rsi) < 35 ? 'text-green-400' : parseFloat(liveIndicators.rsi) > 65 ? 'text-red-400' : 'text-gray-300'}`}>{liveIndicators.rsi}</span></span>}
-            {liveIndicators.macd && <span>MACD hist: <span className={`font-bold ${parseFloat(liveIndicators.macd) > 0 ? 'text-green-400' : 'text-red-400'}`}>{liveIndicators.macd}</span></span>}
-            {liveIndicators.score !== undefined && <span>Score IA: <span className={`font-bold ${liveIndicators.score >= 75 ? 'text-green-400' : liveIndicators.score >= 50 ? 'text-yellow-400' : 'text-gray-400'}`}>{liveIndicators.score}/100</span></span>}
-            {liveIndicators.fearGreed && <span>Sentimento: <span className="font-bold text-[#FF6B35]">{liveIndicators.fearGreed}</span></span>}
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-8">
-            {/* Console */}
-            <div className="bg-[#0F0F1A] border border-[#1F1F2E] rounded-3xl p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold flex items-center gap-2"><Activity size={20} className="text-[#FF6B35]"/> Console de Operacoes</h2>
-                <span className={`text-xs px-2 py-1 rounded-full ${isActive ? 'bg-green-500/20 text-green-500 animate-pulse' : 'bg-gray-500/20 text-gray-500'}`}>{isActive ? 'LIVE' : 'OFFLINE'}</span>
-              </div>
-              <div className="space-y-2 h-48 overflow-y-auto font-mono text-sm">
-                {logs.map((log, i) => (<div key={i} className="p-2 border-b border-[#1F1F2E] text-gray-400"><span className="text-gray-600 mr-2">[{new Date().toLocaleTimeString()}]</span> {log}</div>))}
-              </div>
-            </div>
-
-            {/* Historico */}
-            <div className="bg-[#0F0F1A] border border-[#1F1F2E] rounded-3xl p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold flex items-center gap-2"><History size={20} className="text-[#FF6B35]"/> Historico de Trades</h2>
-                <span className="text-xs text-gray-500">Ultimas 10 operacoes</span>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left font-mono text-sm">
-                  <thead className="text-gray-500 border-b border-[#1F1F2E]">
-                    <tr>
-                      <th className="pb-3 font-medium">Ativo</th>
-                      <th className="pb-3 font-medium">Lado</th>
-                      <th className="pb-3 font-medium">Entrada</th>
-                      <th className="pb-3 font-medium">Status</th>
-                      <th className="pb-3 font-medium text-right">PnL</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tradeHistory.map((trade) => (
-                      <tr key={trade.id} className="border-b border-[#1F1F2E]/50 hover:bg-[#161625] transition-colors">
-                        <td className="py-4 font-bold">{trade.symbol}</td>
-                        <td className={`py-4 font-bold ${trade.side === 'LONG' ? 'text-green-500' : 'text-red-500'}`}>{trade.side}</td>
-                        <td className="py-4 text-gray-400">${trade.entry_price.toFixed(2)}</td>
-                        <td className="py-4 text-gray-400">{trade.status}</td>
-                        <td className={`py-4 text-right font-bold ${(trade.pnl || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                          ${trade.pnl?.toFixed(2) || '0.00'}
-                        </td>
-                      </tr>
-                    ))}
-                    {tradeHistory.length === 0 && (
-                      <tr><td colSpan={5} className="py-10 text-center text-gray-600 italic">Nenhuma operacao registrada.</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-8">
-            {/* Gestao de Risco */}
-            <div className="bg-[#0F0F1A] border border-[#1F1F2E] rounded-3xl p-6">
-              <h2 className="text-xl font-bold mb-6 flex items-center gap-2"><ShieldAlert size={20} className="text-[#FF6B35]"/> Gestao de Risco</h2>
-              <div className="space-y-4">
-                <div>
-                  <label className="text-xs text-gray-500 block mb-2">Risco por Operacao (%)</label>
-                  <input type="number" value={riskConfig.riskPerTrade} onChange={(e) => setRiskConfig({...riskConfig, riskPerTrade: parseFloat(e.target.value) || 0})} className="w-full bg-[#161625] border border-[#2A2A3C] rounded-lg p-2 text-white outline-none focus:border-[#FF6B35]"/>
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 block mb-2">Stop Loss (%)</label>
-                  <input type="number" value={riskConfig.stopLossPercent} onChange={(e) => setRiskConfig({...riskConfig, stopLossPercent: parseFloat(e.target.value) || 0})} className="w-full bg-[#161625] border border-[#2A2A3C] rounded-lg p-2 text-white outline-none focus:border-[#FF6B35]"/>
-                </div>
-              </div>
-            </div>
-
-            {/* Parametros Quantitativos */}
-            <div className="bg-[#0F0F1A] border border-[#1F1F2E] rounded-3xl p-6">
-              <h2 className="text-xl font-bold mb-6 flex items-center gap-2"><Settings size={20} className="text-[#FF6B35]"/> Parametros Quant</h2>
-              <div className="space-y-4">
-                <div>
-                  <label className="text-xs text-gray-500 block mb-2">RSI Low (Compra)</label>
-                  <input type="number" value={params.rsiLow} onChange={(e) => setParams({...params, rsiLow: parseFloat(e.target.value) || 0})} className="w-full bg-[#161625] border border-[#2A2A3C] rounded-lg p-2 text-white outline-none focus:border-[#FF6B35]"/>
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 block mb-2">RSI High (Venda)</label>
-                  <input type="number" value={params.rsiHigh} onChange={(e) => setParams({...params, rsiHigh: parseFloat(e.target.value) || 0})} className="w-full bg-[#161625] border border-[#2A2A3C] rounded-lg p-2 text-white outline-none focus:border-[#FF6B35]"/>
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 block mb-2">Periodo SMA</label>
-                  <input type="number" value={params.smaPeriod} onChange={(e) => setParams({...params, smaPeriod: parseFloat(e.target.value) || 0})} className="w-full bg-[#161625] border border-[#2A2A3C] rounded-lg p-2 text-white outline-none focus:border-[#FF6B35]"/>
-                </div>
-              </div>
-            </div>
-
-            {/* Portfolio */}
-            <PortfolioPanel balance={balance} />
-          </div>
+        <div className="dash-metric">
+          <span className="dash-metric-label">Pico da Banca</span>
+          <span className="dash-metric-val">$ {peakBalance.toFixed(2)}</span>
+        </div>
+        <div className="dash-metric">
+          <span className="dash-metric-label">Drawdown</span>
+          <span className={`dash-metric-val ${drawdownColor}`}>{drawdown.toFixed(1)}%</span>
+        </div>
+        <div className="dash-metric">
+          <span className="dash-metric-label">Sinal Atual</span>
+          <span className={`dash-metric-val ${signalColor}`}>{currentSignal}</span>
+        </div>
+        <div className="dash-metric">
+          <span className="dash-metric-label">Win Rate Real</span>
+          <span className="dash-metric-val cyan">{winRate}</span>
+        </div>
+        <div className="dash-metric">
+          <span className="dash-metric-label">Status</span>
+          <span className={`dash-metric-val ${statusColor}`}>
+            {accountStatus === 'SAFE_MODE' ? 'SAFE MODE' : 'ATIVO'}
+          </span>
         </div>
       </div>
+
+      {/* ─── INDICATORS BAR ─── */}
+      {liveIndicators && (
+        <div className="dash-indicators">
+          <span className="dash-ind-label">Ao Vivo</span>
+          {liveIndicators.rsi && (
+            <span className="dash-ind-item">
+              RSI{' '}
+              <strong className={
+                parseFloat(liveIndicators.rsi) < 35 ? 'dash-ind-green'
+                : parseFloat(liveIndicators.rsi) > 65 ? 'dash-ind-red'
+                : ''
+              }>
+                {liveIndicators.rsi}
+              </strong>
+            </span>
+          )}
+          {liveIndicators.macd && (
+            <span className="dash-ind-item">
+              MACD{' '}
+              <strong className={parseFloat(liveIndicators.macd) > 0 ? 'dash-ind-green' : 'dash-ind-red'}>
+                {liveIndicators.macd}
+              </strong>
+            </span>
+          )}
+          {liveIndicators.score !== undefined && (
+            <span className="dash-ind-item">
+              Score IA{' '}
+              <strong className={
+                liveIndicators.score >= 75 ? 'dash-ind-green'
+                : liveIndicators.score >= 50 ? 'dash-ind-amber'
+                : ''
+              }>
+                {liveIndicators.score}/100
+              </strong>
+            </span>
+          )}
+          {liveIndicators.fearGreed && (
+            <span className="dash-ind-item">
+              Sentimento <strong className="dash-ind-amber">{liveIndicators.fearGreed}</strong>
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* ─── MAIN GRID ─── */}
+      <main className="dash-main">
+
+        {/* LEFT COLUMN */}
+        <div className="dash-left">
+
+          {/* Console */}
+          <div className="dash-panel" style={{ flex: '0 0 auto' }}>
+            <div className="dash-panel-header">
+              <span className="dash-panel-title">
+                <Activity size={13} /> Console de Operações
+              </span>
+              <span className={`dash-panel-badge ${isActive ? 'live' : 'offline'}`}>
+                {isActive ? 'Live' : 'Offline'}
+              </span>
+            </div>
+            <div className="dash-console">
+              {logs.map((log, i) => (
+                <div key={i} className="dash-log-line">
+                  <span className="dash-log-time">{new Date().toLocaleTimeString()}</span>
+                  <span>{log}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Histórico de Trades */}
+          <div className="dash-panel" style={{ flex: 1 }}>
+            <div className="dash-panel-header">
+              <span className="dash-panel-title">
+                <History size={13} /> Histórico de Trades
+              </span>
+              <span className="dash-panel-badge offline">últimas 10</span>
+            </div>
+            <div className="dash-table-wrap">
+              <table className="dash-table">
+                <thead>
+                  <tr>
+                    <th>Ativo</th>
+                    <th>Lado</th>
+                    <th>Entrada</th>
+                    <th>Status</th>
+                    <th>PnL</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tradeHistory.map((trade) => (
+                    <tr key={trade.id}>
+                      <td className="dash-td-symbol">{trade.symbol}</td>
+                      <td>
+                        <span className={`dash-side ${trade.side === 'LONG' ? 'long' : 'short'}`}>
+                          {trade.side}
+                        </span>
+                      </td>
+                      <td>${trade.entry_price.toFixed(2)}</td>
+                      <td>{trade.status}</td>
+                      <td className={(trade.pnl || 0) >= 0 ? 'dash-pnl-pos' : 'dash-pnl-neg'}>
+                        ${trade.pnl?.toFixed(2) || '0.00'}
+                      </td>
+                    </tr>
+                  ))}
+                  {tradeHistory.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="dash-empty">Nenhuma operação registrada.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+
+        {/* RIGHT COLUMN */}
+        <div className="dash-right">
+
+          {/* Gestão de Risco */}
+          <div className="dash-side-panel">
+            <div className="dash-side-title"><ShieldAlert size={13} /> Gestão de Risco</div>
+            <div className="dash-field">
+              <label className="dash-field-label">Risco por Operação (%)</label>
+              <input
+                type="number"
+                value={riskConfig.riskPerTrade}
+                onChange={(e) => setRiskConfig({ ...riskConfig, riskPerTrade: parseFloat(e.target.value) || 0 })}
+                className="dash-input"
+              />
+            </div>
+            <div className="dash-field">
+              <label className="dash-field-label">Stop Loss (%)</label>
+              <input
+                type="number"
+                value={riskConfig.stopLossPercent}
+                onChange={(e) => setRiskConfig({ ...riskConfig, stopLossPercent: parseFloat(e.target.value) || 0 })}
+                className="dash-input"
+              />
+            </div>
+          </div>
+
+          {/* Parâmetros Quant */}
+          <div className="dash-side-panel">
+            <div className="dash-side-title"><Settings size={13} /> Parâmetros Quant</div>
+            <div className="dash-field">
+              <label className="dash-field-label">RSI Low (Compra)</label>
+              <input
+                type="number"
+                value={params.rsiLow}
+                onChange={(e) => setParams({ ...params, rsiLow: parseFloat(e.target.value) || 0 })}
+                className="dash-input"
+              />
+            </div>
+            <div className="dash-field">
+              <label className="dash-field-label">RSI High (Venda)</label>
+              <input
+                type="number"
+                value={params.rsiHigh}
+                onChange={(e) => setParams({ ...params, rsiHigh: parseFloat(e.target.value) || 0 })}
+                className="dash-input"
+              />
+            </div>
+            <div className="dash-field">
+              <label className="dash-field-label">Período SMA</label>
+              <input
+                type="number"
+                value={params.smaPeriod}
+                onChange={(e) => setParams({ ...params, smaPeriod: parseFloat(e.target.value) || 0 })}
+                className="dash-input"
+              />
+            </div>
+          </div>
+
+          {/* Portfolio */}
+          <PortfolioPanel balance={balance} />
+
+        </div>
+      </main>
+
     </div>
   );
 }
 
+// ─── PORTFOLIO PANEL ─────────────────────────────────────────────────────────
+
 const PORTFOLIO = [
-  { symbol: 'BTCUSDT',  label: 'Bitcoin',    color: '#F7931A', alloc: 0.30 },
-  { symbol: 'ETHUSDT',  label: 'Ethereum',   color: '#627EEA', alloc: 0.20 },
-  { symbol: 'SOLUSDT',  label: 'Solana',     color: '#9945FF', alloc: 0.12 },
-  { symbol: 'BNBUSDT',  label: 'BNB',        color: '#F3BA2F', alloc: 0.10 },
-  { symbol: 'XRPUSDT',  label: 'Ripple',     color: '#00AAE4', alloc: 0.08 },
-  { symbol: 'ADAUSDT',  label: 'Cardano',    color: '#0033AD', alloc: 0.07 },
-  { symbol: 'AVAXUSDT', label: 'Avalanche',  color: '#E84142', alloc: 0.07 },
-  { symbol: 'LINKUSDT', label: 'Chainlink',  color: '#2A5ADA', alloc: 0.06 },
+  { symbol: 'BTCUSDT',  label: 'Bitcoin',   color: '#F7931A', alloc: 0.30 },
+  { symbol: 'ETHUSDT',  label: 'Ethereum',  color: '#627EEA', alloc: 0.20 },
+  { symbol: 'SOLUSDT',  label: 'Solana',    color: '#9945FF', alloc: 0.12 },
+  { symbol: 'BNBUSDT',  label: 'BNB',       color: '#F3BA2F', alloc: 0.10 },
+  { symbol: 'XRPUSDT',  label: 'Ripple',    color: '#00AAE4', alloc: 0.08 },
+  { symbol: 'ADAUSDT',  label: 'Cardano',   color: '#0033AD', alloc: 0.07 },
+  { symbol: 'AVAXUSDT', label: 'Avalanche', color: '#E84142', alloc: 0.07 },
+  { symbol: 'LINKUSDT', label: 'Chainlink', color: '#2A5ADA', alloc: 0.06 },
 ];
 
 function PortfolioPanel({ balance }: { balance: number }) {
@@ -409,47 +505,43 @@ function PortfolioPanel({ balance }: { balance: number }) {
   }, []);
 
   return (
-    <div className="bg-[#0F0F1A] border border-[#1F1F2E] rounded-3xl p-6">
-      <h2 className="text-xl font-bold mb-5 flex items-center gap-2">
-        <TrendingUp size={20} className="text-[#FF6B35]"/> Portfolio
-      </h2>
-      <div className="space-y-4">
-        {PORTFOLIO.map((asset) => {
-          const allocUsd = balance * asset.alloc;
-          const price    = prices[asset.symbol] || 0;
-          const qty      = price > 0 ? allocUsd / price : 0;
-          return (
-            <div key={asset.symbol}>
-              <div className="flex justify-between items-center mb-1">
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: asset.color }} />
-                  <span className="text-sm font-bold">{asset.label}</span>
-                </div>
-                <div className="text-right">
-                  <span className="text-sm font-mono font-bold">${allocUsd.toFixed(2)}</span>
-                  <span className="text-xs text-gray-500 ml-2">{(asset.alloc * 100).toFixed(0)}%</span>
-                </div>
+    <div className="dash-side-panel">
+      <div className="dash-side-title"><TrendingUp size={13} /> Portfolio</div>
+
+      {PORTFOLIO.map((asset) => {
+        const allocUsd = balance * asset.alloc;
+        const price    = prices[asset.symbol] || 0;
+        const qty      = price > 0 ? allocUsd / price : 0;
+        return (
+          <div key={asset.symbol} className="dash-portfolio-item">
+            <div className="dash-portfolio-row">
+              <div className="dash-portfolio-name">
+                <span className="dash-portfolio-dot" style={{ backgroundColor: asset.color }} />
+                {asset.label}
               </div>
-              <div className="w-full bg-[#161625] rounded-full h-1.5">
-                <div className="h-1.5 rounded-full transition-all" style={{ width: `${asset.alloc * 100}%`, backgroundColor: asset.color }} />
+              <div className="dash-portfolio-vals">
+                <span className="dash-portfolio-usd">${allocUsd.toFixed(2)}</span>
+                <span className="dash-portfolio-pct">{(asset.alloc * 100).toFixed(0)}%</span>
               </div>
-              {price > 0 && (
-                <p className="text-xs text-gray-600 mt-0.5">
-                  aprox. {qty.toFixed(6)} {asset.symbol.replace('USDT', '')} @ ${price.toLocaleString('en-US', { maximumFractionDigits: 2 })}
-                </p>
-              )}
             </div>
-          );
-        })}
-        <div className="border-t border-[#1F1F2E] pt-3 mt-2">
-          <div className="flex justify-between text-xs text-gray-500">
-            <span>Total alocado</span>
-            <span className="font-mono text-white">${balance.toFixed(2)}</span>
+            <div className="dash-portfolio-bar-track">
+              <div
+                className="dash-portfolio-bar-fill"
+                style={{ width: `${asset.alloc * 100}%`, backgroundColor: asset.color }}
+              />
+            </div>
+            {price > 0 && (
+              <div className="dash-portfolio-qty">
+                ≈ {qty.toFixed(6)} {asset.symbol.replace('USDT', '')} @ ${price.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+              </div>
+            )}
           </div>
-          <p className="text-xs text-gray-600 mt-2 italic">
-            Rebalanceamento automatico ativo - risco distribuido proporcionalmente.
-          </p>
-        </div>
+        );
+      })}
+
+      <div className="dash-portfolio-total">
+        <span className="dash-portfolio-total-label">Total alocado</span>
+        <span className="dash-portfolio-total-val">${balance.toFixed(2)}</span>
       </div>
     </div>
   );
