@@ -27,6 +27,8 @@
 //   • Dados: Binance (cripto) + Yahoo Finance (ações)
 // =============================================================
 
+import type { SupabaseClient } from '@supabase/supabase-js';
+
 // ─────────────────────────────────────────────────────────────
 // TIPOS FUNDAMENTAIS
 // ─────────────────────────────────────────────────────────────
@@ -878,11 +880,8 @@ export interface SavedConfig {
 
 export async function exportConfig(
   saved: Omit<SavedConfig, 'id' | 'createdAt'>,
-  supabaseClient: {
-    from: (table: string) => {
-      upsert: (data: object) => { select: (col: string) => { single: () => Promise<{ data: { id: string } | null; error: Error | null }> } }
-    }
-  },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabaseClient: SupabaseClient<any>,
 ): Promise<string | null> {
   const { data, error } = await supabaseClient
     .from('bot_configs')
