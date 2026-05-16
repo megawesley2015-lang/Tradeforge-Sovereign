@@ -148,6 +148,11 @@ export async function POST(req: NextRequest) {
       progressiveRisk, circuitBreaker,
       maxCandlesInTrade, balanceTarget,
       slippage,
+      // Filtros avançados — defaults conservadores
+      useVolumeFilter: true,
+      volumeThreshold: 0.8,
+      minVotesLong:    2,
+      minVotesShort:   2,
     };
 
     // ── Candles (auto-detecta Binance vs Yahoo Finance) ────────
