@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
-import { Wallet, Activity, TrendingUp, ShieldAlert, Play, Square, Coins, History, Lock, Settings, BarChart2, DollarSign, Radio } from 'lucide-react';
+import { Wallet, Activity, TrendingUp, ShieldAlert, Play, Square, Coins, History, Lock, Settings, BarChart2, DollarSign, Radio, Tv2 } from 'lucide-react';
 import Link from 'next/link';
 import { StatCard } from '@/components/trading/StatCard';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
@@ -9,6 +9,7 @@ const supabase = getSupabaseBrowserClient();
 
 export default function Dashboard() {
   const [isActive, setIsActive] = useState(false);
+  const [botToggling, setBotToggling] = useState(false);
   const [currentSignal, setCurrentSignal] = useState('NEUTRAL');
   const [logs, setLogs] = useState<string[]>(['Sistemas prontos. Aguardando ativacao...']);
   
@@ -36,8 +37,33 @@ export default function Dashboard() {
   const [drawdown, setDrawdown] = useState(0);
   const [mounted, setMounted] = useState(false);
 
+  // ── Sincroniza estado do bot com Supabase ────────────────────
+  const toggleBot = useCallback(async () => {
+    setBotToggling(true);
+    try {
+      const next = !isActive;
+      await supabase
+        .from('bot_status')
+        .update({ enabled: next, updated_at: new Date().toISOString(), updated_by: 'dashboard' })
+        .eq('enabled', isActive); // atualiza o registro singleton
+      setIsActive(next);
+    } catch (err) {
+      console.error('[Dashboard] Erro ao alterar bot_status:', err);
+    } finally {
+      setBotToggling(false);
+    }
+  }, [isActive]);
+
   const refreshGlobalData = useCallback(async () => {
     try {
+      // Lê o estado real do bot do Supabase
+      const { data: botData } = await supabase
+        .from('bot_status')
+        .select('enabled')
+        .limit(1)
+        .single();
+      if (botData) setIsActive(botData.enabled);
+
       const { data: profileData } = await supabase
         .from('profiles')
         .select('balance, peak_balance, account_status')
@@ -168,38 +194,36 @@ export default function Dashboard() {
       <div className="max-w-7xl mx-auto">
         
         {/* Header */}
-        <div className="flex justify-between items-center mb-10">
-          <div className="flex items-center gap-6">
-            <div>
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-10">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full lg:w-auto">
+            <div className="shrink-0">
               <div className="flex items-center gap-3">
-                <h1 className="text-3xl font-bold">TradeForge <span className="text-[#FF6B35]">Sovereign</span></h1>
+                <h1 className="text-2xl lg:text-3xl font-bold">TradeForge <span className="text-[#FF6B35]">Sovereign</span></h1>
                 <span className="flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-yellow-500/15 text-yellow-400 border border-yellow-500/30 animate-pulse">
                   <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 inline-block"/>
-                  PAPER MODE
+                  PAPER
                 </span>
               </div>
-              <p className="text-gray-500">Quant Engine v3.0 - MACD + BB + Sentiment · Modo simulação ativo</p>
+              <p className="text-gray-500 text-xs mt-0.5">Quant Engine v3.0 · MACD + BB + ADX · Simulação</p>
             </div>
-            <Link href="/trading/signals"
-              className="flex items-center gap-2 text-sm text-gray-400 hover:text-[#FF6B35] border border-[#1F1F2E] hover:border-[#FF6B35] px-3 py-2 rounded-xl transition-colors">
-              <Radio size={14} /> Sinais Live
-            </Link>
-            <Link href="/trading/backtest"
-              className="flex items-center gap-2 text-sm text-gray-400 hover:text-[#FF6B35] border border-[#1F1F2E] hover:border-[#FF6B35] px-3 py-2 rounded-xl transition-colors">
-              <BarChart2 size={14} /> Backtester
-            </Link>
-            <Link href="/trading/backtest-basket"
-              className="flex items-center gap-2 text-sm text-gray-400 hover:text-[#FF6B35] border border-[#1F1F2E] hover:border-[#FF6B35] px-3 py-2 rounded-xl transition-colors">
-              <BarChart2 size={14} /> Basket
-            </Link>
-            <Link href="/trading/arbitrage"
-              className="flex items-center gap-2 text-sm text-gray-400 hover:text-[#FF6B35] border border-[#1F1F2E] hover:border-[#FF6B35] px-3 py-2 rounded-xl transition-colors">
-              <DollarSign size={14} /> Arbitragem
-            </Link>
-            <Link href="/trading/settings"
-              className="flex items-center gap-2 text-sm text-gray-400 hover:text-[#FF6B35] border border-[#1F1F2E] hover:border-[#FF6B35] px-3 py-2 rounded-xl transition-colors">
-              <Settings size={14} /> Config
-            </Link>
+
+            {/* Nav links — scroll horizontal no mobile */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full scrollbar-none">
+              {[
+                { href: '/trading/signals',        icon: <Radio size={13} />,    label: 'Sinais'     },
+                { href: '/trading/backtest',        icon: <BarChart2 size={13} />, label: 'Backtest'  },
+                { href: '/trading/backtest-basket', icon: <BarChart2 size={13} />, label: 'Basket'    },
+                { href: '/trading/live-demo',       icon: <Tv2 size={13} />,      label: 'Live Demo' },
+                { href: '/trading/arbitrage',       icon: <DollarSign size={13} />, label: 'Arb'     },
+                { href: '/trading/settings',        icon: <Settings size={13} />, label: 'Config'    },
+              ].map(({ href, icon, label }) => (
+                <Link key={href} href={href}
+                  className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-[#FF6B35] border border-[#1F1F2E] hover:border-[#FF6B35] px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap shrink-0">
+                  {icon} {label}
+                </Link>
+              ))}
+            </div>
+          </div>
             <div className="flex items-center gap-3 bg-[#0F0F1A] border border-[#1F1F2E] p-2 rounded-xl">
               <Coins size={18} className="text-[#FF6B35] ml-2" />
               <select value={symbol} onChange={(e) => setSymbol(e.target.value)} className="bg-transparent outline-none text-sm font-bold cursor-pointer">
@@ -218,9 +242,18 @@ export default function Dashboard() {
               <span className="text-xs font-mono text-[#FF6B35] ml-2 bg-[#FF6B35]/10 px-2 py-1 rounded">${livePrice}</span>
             </div>
           </div>
-          <button onClick={() => setIsActive(!isActive)} className={`p-4 rounded-full transition-all flex items-center gap-2 ${isActive ? 'bg-red-600 hover:bg-red-700' : 'bg-[#FF6B35] hover:bg-[#e55a2a]'}`}>
-            {isActive ? <Square size={20} fill="currentColor"/> : <Play size={20} fill="currentColor"/>}
-            <span className="font-bold">{isActive ? 'PARAR BOT' : 'INICIAR BOT'}</span>
+          <button
+            onClick={toggleBot}
+            disabled={botToggling}
+            className={`px-5 py-3 rounded-xl transition-all flex items-center gap-2 font-bold text-sm disabled:opacity-60 ${
+              isActive ? 'bg-red-600 hover:bg-red-700' : 'bg-[#FF6B35] hover:bg-[#e55a2a]'
+            }`}
+          >
+            {botToggling
+              ? <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"/>
+              : isActive ? <Square size={16} fill="currentColor"/> : <Play size={16} fill="currentColor"/>
+            }
+            {isActive ? 'PARAR BOT' : 'INICIAR BOT'}
           </button>
         </div>
 

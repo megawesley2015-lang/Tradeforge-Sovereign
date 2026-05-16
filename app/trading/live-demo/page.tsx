@@ -139,7 +139,7 @@ export default function LiveDemoPage() {
       <div className="bg-[#0F0F1E] border-b border-[#1E1E3A] px-6 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link href="/trading" className="text-gray-500 hover:text-white transition-colors">
+            <Link href="/trading/dashboard" className="text-gray-500 hover:text-white transition-colors">
               <ArrowLeft size={18} />
             </Link>
             <Bot size={20} className="text-[#FF6B35]" />
