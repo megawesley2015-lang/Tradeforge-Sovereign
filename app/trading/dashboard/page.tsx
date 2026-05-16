@@ -1,11 +1,22 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
-import { Wallet, Activity, TrendingUp, ShieldAlert, Play, Square, Coins, History, Lock, Settings, BarChart2, DollarSign, Radio, Tv2 } from 'lucide-react';
+import { Wallet, Activity, TrendingUp, ShieldAlert, Play, Square, Coins, History, Lock, Settings, BarChart2, DollarSign, Radio, Tv2, type LucideProps } from 'lucide-react';
+import type { ComponentType } from 'react';
 import Link from 'next/link';
 import { StatCard } from '@/components/trading/StatCard';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 
 const supabase = getSupabaseBrowserClient();
+
+// Nav items defined outside component so Turbopack doesn't see JSX inside array literals
+const NAV_ITEMS: { href: string; Icon: ComponentType<LucideProps>; label: string }[] = [
+  { href: '/trading/signals',        Icon: Radio,       label: 'Sinais'    },
+  { href: '/trading/backtest',        Icon: BarChart2,   label: 'Backtest'  },
+  { href: '/trading/backtest-basket', Icon: BarChart2,   label: 'Basket'    },
+  { href: '/trading/live-demo',       Icon: Tv2,         label: 'Live Demo' },
+  { href: '/trading/arbitrage',       Icon: DollarSign,  label: 'Arb'       },
+  { href: '/trading/settings',        Icon: Settings,    label: 'Config'    },
+];
 
 export default function Dashboard() {
   const [isActive, setIsActive] = useState(false);
@@ -209,17 +220,10 @@ export default function Dashboard() {
 
             {/* Nav links — scroll horizontal no mobile */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full scrollbar-none">
-              {[
-                { href: '/trading/signals',        icon: <Radio size={13} />,    label: 'Sinais'     },
-                { href: '/trading/backtest',        icon: <BarChart2 size={13} />, label: 'Backtest'  },
-                { href: '/trading/backtest-basket', icon: <BarChart2 size={13} />, label: 'Basket'    },
-                { href: '/trading/live-demo',       icon: <Tv2 size={13} />,      label: 'Live Demo' },
-                { href: '/trading/arbitrage',       icon: <DollarSign size={13} />, label: 'Arb'     },
-                { href: '/trading/settings',        icon: <Settings size={13} />, label: 'Config'    },
-              ].map(({ href, icon, label }) => (
+              {NAV_ITEMS.map(({ href, Icon, label }) => (
                 <Link key={href} href={href}
                   className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-[#FF6B35] border border-[#1F1F2E] hover:border-[#FF6B35] px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap shrink-0">
-                  {icon} {label}
+                  <Icon size={13} /> {label}
                 </Link>
               ))}
             </div>
