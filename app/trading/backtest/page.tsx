@@ -46,7 +46,7 @@ interface BacktestResult {
     exitReason: string;
   }[];
   trendFilterUsed?: boolean;
-  config?: Record<string, unknown>;
+  config?: Record<string, boolean | number | string | null | undefined>;
 }
 
 interface Params {
