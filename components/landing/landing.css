@@ -650,3 +650,107 @@
 }
 
 .tf-footer-links a:hover { color: var(--muted-hi); }
+
+/* ─── MÓDULOS ─── */
+.tf-modulos {
+  padding: 96px 56px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tf-modulos-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 40px;
+  margin-bottom: 48px;
+}
+
+.tf-modulos-header .tf-secao-titulo {
+  margin-bottom: 0;
+}
+
+.tf-modulos-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  overflow: hidden;
+}
+
+.tf-modulo-card {
+  background: var(--surface);
+  padding: 32px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  text-decoration: none;
+  transition: background 0.15s;
+  cursor: pointer;
+}
+
+.tf-modulo-card:hover {
+  background: rgba(255,255,255,0.025);
+}
+
+.tf-modulo-tag {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.10em;
+  padding: 3px 9px;
+  border-radius: var(--r);
+  border: 1px solid;
+  width: fit-content;
+}
+
+.tf-modulo-title {
+  font-family: var(--grotesk);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  line-height: 1.2;
+  margin: 0;
+}
+
+.tf-modulo-desc {
+  font-family: var(--grotesk);
+  font-size: 13px;
+  font-weight: 300;
+  color: var(--muted-hi);
+  line-height: 1.65;
+  flex: 1;
+  margin: 0;
+}
+
+.tf-modulo-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  margin-top: auto;
+}
+
+.tf-modulo-stat {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+}
+
+.tf-modulo-arrow {
+  font-family: var(--mono);
+  font-size: 14px;
+  color: var(--muted);
+  transition: color 0.15s, transform 0.15s;
+}
+
+.tf-modulo-card:hover .tf-modulo-arrow {
+  color: var(--text);
+  transform: translateX(3px);
+}
