@@ -378,7 +378,7 @@ function TradeCard({ trade }: { trade: Trade }) {
         </div>
         <div style={{ textAlign: 'right' }}>
           {isClosed && (
-            <div className={`dash-trade-pnl ${pnl >= 0 ? 'win' : 'loss'}`}>
+            <div className={`dash-trade-pnl ${pnl >= 0 ? 'pos' : 'neg'}`}>
               {pnl >= 0 ? '+' : ''}{fmtUSD(pnl)}
             </div>
           )}
@@ -389,34 +389,34 @@ function TradeCard({ trade }: { trade: Trade }) {
       {/* Data grid */}
       <div className="dash-trade-data">
         <div>
-          <span className="dash-trade-data-label">Entrada</span>
-          <span className="dash-trade-data-val">${fmt(trade.entry_price, 4)}</span>
+          <div className="dash-trade-data-item-label">Entrada</div>
+          <div className="dash-trade-data-item-val entry">${fmt(trade.entry_price, 4)}</div>
         </div>
         <div>
-          <span className="dash-trade-data-label">Stop</span>
-          <span className="dash-trade-data-val" style={{ color: 'var(--red)' }}>${fmt(trade.stop_price, 4)}</span>
+          <div className="dash-trade-data-item-label">Stop</div>
+          <div className="dash-trade-data-item-val stop">${fmt(trade.stop_price, 4)}</div>
         </div>
         <div>
-          <span className="dash-trade-data-label">TP3</span>
-          <span className="dash-trade-data-val" style={{ color: 'var(--green)' }}>${fmt(trade.tp3_price, 4)}</span>
+          <div className="dash-trade-data-item-label">TP3</div>
+          <div className="dash-trade-data-item-val tp">${fmt(trade.tp3_price, 4)}</div>
         </div>
         {isClosed && trade.exit_price && (
           <div>
-            <span className="dash-trade-data-label">Saída</span>
-            <span className="dash-trade-data-val">${fmt(trade.exit_price, 4)}</span>
+            <div className="dash-trade-data-item-label">Saída</div>
+            <div className="dash-trade-data-item-val">${fmt(trade.exit_price, 4)}</div>
           </div>
         )}
         <div>
-          <span className="dash-trade-data-label">ADX</span>
+          <div className="dash-trade-data-item-label">ADX</div>
           <AdxBar adx={trade.adx ?? 0} />
         </div>
         <div>
-          <span className="dash-trade-data-label">Volume</span>
-          <span className="dash-trade-data-val" style={{
+          <div className="dash-trade-data-item-label">Volume</div>
+          <div className="dash-trade-data-item-val" style={{
             color: trade.volume_ratio >= 1 ? 'var(--green)' : 'var(--muted)',
           }}>
             {(trade.volume_ratio ?? 0).toFixed(2)}x
-          </span>
+          </div>
         </div>
       </div>
 
