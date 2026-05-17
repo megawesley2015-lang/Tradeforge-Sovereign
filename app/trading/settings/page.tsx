@@ -1,22 +1,33 @@
-
 "use client";
 import { useState, useEffect } from 'react';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
-import { Settings, Key, Bell, Shield, LogOut, ChevronRight, CheckCircle, AlertCircle, ArrowLeft, Brain } from 'lucide-react';
+import {
+  Key, Bell, Shield, LogOut, ChevronLeft,
+  CheckCircle, AlertCircle, Brain, Zap,
+} from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import '@/components/dashboard/dashboard.css';
 
 type Tab = 'api' | 'notifications' | 'risk';
 
-export default function SettingsPage() {
-  const router = useRouter();
-  const [tab,     setTab]     = useState<Tab>('api');
-  const [user,    setUser]    = useState<{ email?: string; full_name?: string } | null>(null);
-  const [saving,  setSaving]  = useState(false);
-  const [saved,   setSaved]   = useState(false);
-  const [error,   setError]   = useState('');
+const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
+  { id: 'api',           label: 'Binance API',     icon: <Key     size={11} /> },
+  { id: 'notifications', label: 'Notificações',    icon: <Bell    size={11} /> },
+  { id: 'risk',          label: 'Gestão de Risco', icon: <Shield  size={11} /> },
+];
 
-  // API Keys
+export default function SettingsPage() {
+  const router   = useRouter();
+  const supabase = getSupabaseBrowserClient();
+
+  const [tab,    setTab]    = useState<Tab>('api');
+  const [user,   setUser]   = useState<{ email?: string; full_name?: string } | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saved,  setSaved]  = useState(false);
+  const [error,  setError]  = useState('');
+
+  // API
   const [apiKey,    setApiKey]    = useState('');
   const [apiSecret, setApiSecret] = useState('');
   const [liveMode,  setLiveMode]  = useState(false);
@@ -25,73 +36,50 @@ export default function SettingsPage() {
   const [telegramToken, setTelegramToken] = useState('');
   const [telegramChat,  setTelegramChat]  = useState('');
 
-  // Risco padrão
+  // Risco
   const [riskPct,  setRiskPct]  = useState(1);
   const [slPct,    setSlPct]    = useState(2);
   const [maxDD,    setMaxDD]    = useState(10);
   const [rrRatio,  setRrRatio]  = useState(2);
 
   // ML
-  const [mlTraining,  setMlTraining]  = useState(false);
-  const [mlResult,    setMlResult]    = useState<{ samples?: number; accuracy?: number; message?: string; error?: string; success?: boolean } | null>(null);
-  const [mlStatus,    setMlStatus]    = useState<{ ready?: boolean; trainedOn?: number; accuracy?: number; message?: string } | null>(null);
-
-  const supabase = getSupabaseBrowserClient();
+  const [mlTraining, setMlTraining] = useState(false);
+  const [mlResult,   setMlResult]   = useState<{ samples?: number; accuracy?: number; message?: string; error?: string; success?: boolean } | null>(null);
+  const [mlStatus,   setMlStatus]   = useState<{ ready?: boolean; trainedOn?: number; accuracy?: number; message?: string } | null>(null);
 
   useEffect(() => {
     const load = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setUser({
-          email:     user.email,
-          full_name: user.user_metadata?.full_name,
-        });
-      }
-
-      // Status do modelo ML
+      if (user) setUser({ email: user.email, full_name: user.user_metadata?.full_name });
       try {
         const res = await fetch('/trading/api/ml/train');
         if (res.ok) setMlStatus(await res.json());
       } catch {}
     };
     load();
-  }, []);
+  }, [supabase]);
 
   const handleTrainML = async () => {
-    setMlTraining(true);
-    setMlResult(null);
+    setMlTraining(true); setMlResult(null);
     try {
-      const res = await fetch('/trading/api/ml/train', { method: 'POST' });
+      const res  = await fetch('/trading/api/ml/train', { method: 'POST' });
       const json = await res.json();
       setMlResult(json);
-      if (json.success) {
-        setMlStatus({ ready: true, trainedOn: json.samples, accuracy: json.accuracy, message: json.message });
-      }
-    } catch (e: any) {
-      setMlResult({ error: e.message });
-    } finally {
-      setMlTraining(false);
-    }
+      if (json.success) setMlStatus({ ready: true, trainedOn: json.samples, accuracy: json.accuracy, message: json.message });
+    } catch (e: unknown) {
+      setMlResult({ error: e instanceof Error ? e.message : 'Erro' });
+    } finally { setMlTraining(false); }
   };
 
   const handleSave = async () => {
-    setSaving(true);
-    setError('');
-    setSaved(false);
-
+    setSaving(true); setError(''); setSaved(false);
     try {
-      // Nota de segurança: em produção, as API keys devem ser enviadas
-      // para uma Supabase Edge Function que as guarda criptografadas.
-      // Para o MVP, usamos variáveis de ambiente no servidor.
-      // Aqui apenas simulamos o feedback visual de "salvo".
       await new Promise((r) => setTimeout(r, 800));
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setSaving(false);
-    }
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Erro');
+    } finally { setSaving(false); }
   };
 
   const handleLogout = async () => {
@@ -99,271 +87,288 @@ export default function SettingsPage() {
     router.push('/auth/login');
   };
 
-  const inputClass = "w-full bg-[#161625] border border-[#2A2A3C] rounded-xl py-3 px-4 text-white outline-none focus:border-[#FF6B35] text-sm font-mono placeholder-gray-600";
-  const labelClass = "text-xs text-gray-500 block mb-2";
-
   return (
-    <div className="min-h-screen bg-[#07070D] text-white p-8 font-sans">
-      <div className="max-w-3xl mx-auto">
+    <div className="dash-root">
 
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
-          <Link href="/trading/dashboard" className="text-gray-500 hover:text-white transition-colors">
-            <ArrowLeft size={20} />
+      {/* ─── HEADER ─── */}
+      <div className="dash-page-header">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <Link href="/trading/dashboard" className="dash-breadcrumb">
+            <ChevronLeft size={12} /> Dashboard
           </Link>
-          <div>
-            <h1 className="text-2xl font-bold">Configurações</h1>
-            <p className="text-gray-500 text-sm">{user?.email}</p>
+          <div className="dash-page-title">
+            <Key size={13} /> Configurações
+          </div>
+        </div>
+        {user?.email && (
+          <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted)', background: 'var(--surface)', border: '1px solid var(--border)', padding: '3px 10px', borderRadius: 2 }}>
+            {user.email}
+          </span>
+        )}
+      </div>
+
+      {/* ─── LAYOUT ─── */}
+      <div className="dash-settings-layout">
+
+        {/* NAV ESQUERDA */}
+        <div className="dash-settings-nav">
+          {user && (
+            <div className="dash-settings-user">
+              <div className="dash-settings-user-avatar">
+                {(user.full_name || user.email || 'U')[0].toUpperCase()}
+              </div>
+              <div>
+                <div className="dash-settings-user-name">{user.full_name || 'Usuário'}</div>
+                <div className="dash-settings-user-email">{user.email}</div>
+              </div>
+            </div>
+          )}
+
+          <div className="dash-settings-nav-items">
+            {TABS.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                className={`dash-settings-nav-item${tab === t.id ? ' active' : ''}`}
+              >
+                {t.icon} {t.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="dash-settings-nav-bottom">
+            <button onClick={handleLogout} className="dash-settings-logout-btn">
+              <LogOut size={11} /> Sair
+            </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* CONTEÚDO DIREITA */}
+        <div className="dash-settings-body">
 
-          {/* Sidebar de navegação */}
-          <div className="bg-[#0F0F1A] border border-[#1F1F2E] rounded-3xl p-4 space-y-1 h-fit">
-            {([
-              { id: 'api',           label: 'Binance API',    icon: <Key size={16} />    },
-              { id: 'notifications', label: 'Notificações',   icon: <Bell size={16} />   },
-              { id: 'risk',          label: 'Gestão de Risco', icon: <Shield size={16} /> },
-            ] as { id: Tab; label: string; icon: React.ReactNode }[]).map((item) => (
-              <button
-                key={item.id}
-                onClick={() => setTab(item.id)}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm transition-colors ${
-                  tab === item.id
-                    ? 'bg-[#FF6B35]/20 text-[#FF6B35] font-medium'
-                    : 'text-gray-400 hover:text-white hover:bg-[#161625]'
-                }`}
-              >
-                <span className="flex items-center gap-2">{item.icon} {item.label}</span>
-                <ChevronRight size={14} />
-              </button>
-            ))}
-
-            <div className="border-t border-[#1F1F2E] pt-3 mt-3">
-              <button
-                onClick={handleLogout}
-                className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm text-red-400 hover:bg-red-900/20 transition-colors"
-              >
-                <LogOut size={16} /> Sair
-              </button>
-            </div>
-          </div>
-
-          {/* Painel de conteúdo */}
-          <div className="lg:col-span-3 bg-[#0F0F1A] border border-[#1F1F2E] rounded-3xl p-6">
-
-            {/* === ABA: BINANCE API === */}
-            {tab === 'api' && (
-              <div className="space-y-6">
+          {/* ══ ABA: API ══ */}
+          {tab === 'api' && (
+            <div className="dash-settings-content">
+              <div className="dash-settings-section-head">
+                <Key size={12} style={{ color: 'var(--amber)' }} />
                 <div>
-                  <h2 className="text-lg font-bold flex items-center gap-2 mb-1">
-                    <Key size={18} className="text-[#FF6B35]" /> Binance API Keys
-                  </h2>
-                  <p className="text-gray-500 text-xs">
-                    Suas chaves ficam armazenadas com segurança e são usadas apenas no servidor.
-                  </p>
+                  <div className="dash-settings-section-title">Binance API Keys</div>
+                  <div className="dash-settings-section-sub">Suas chaves ficam armazenadas com segurança e são usadas apenas no servidor.</div>
                 </div>
-
-                <div className="bg-yellow-900/20 border border-yellow-800/40 rounded-xl p-3 text-xs text-yellow-400">
-                  ⚠️ Use chaves com permissão apenas de <strong>Futures Trading</strong>.
-                  Nunca ative saques. Restrinja por IP de preferência.
-                </div>
-
-                <div>
-                  <label className={labelClass}>API Key</label>
-                  <input
-                    type="text"
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="Sua Binance API Key..."
-                    className={inputClass}
-                  />
-                </div>
-
-                <div>
-                  <label className={labelClass}>API Secret</label>
-                  <input
-                    type="password"
-                    value={apiSecret}
-                    onChange={(e) => setApiSecret(e.target.value)}
-                    placeholder="••••••••••••••••••••••••••••••••"
-                    className={inputClass}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between bg-[#161625] rounded-xl p-4">
-                  <div>
-                    <p className="text-sm font-medium">Modo de Operação</p>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      {liveMode
-                        ? '🔴 LIVE — Ordens reais na Binance Futures'
-                        : '🟡 PAPER — Testnet (sem dinheiro real)'}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setLiveMode(!liveMode)}
-                    className={`w-12 h-6 rounded-full transition-colors relative ${liveMode ? 'bg-[#FF6B35]' : 'bg-[#2A2A3C]'}`}
-                  >
-                    <span className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${liveMode ? 'left-7' : 'left-1'}`} />
-                  </button>
-                </div>
-
-                {liveMode && (
-                  <div className="bg-red-900/20 border border-red-800/40 rounded-xl p-3 text-xs text-red-400">
-                    🚨 <strong>MODO LIVE ATIVADO:</strong> Ordens serão executadas com dinheiro real.
-                    Certifique-se de ter testado com PAPER trading primeiro.
-                  </div>
-                )}
               </div>
-            )}
 
-            {/* === ABA: NOTIFICAÇÕES === */}
-            {tab === 'notifications' && (
-              <div className="space-y-6">
-                <div>
-                  <h2 className="text-lg font-bold flex items-center gap-2 mb-1">
-                    <Bell size={18} className="text-[#FF6B35]" /> Telegram
-                  </h2>
-                  <p className="text-gray-500 text-xs">
-                    Receba alertas de entradas, saídas e safe mode em tempo real.
+              <div className="dash-warn-box" style={{ marginBottom: 0 }}>
+                <div className="dash-warn-box-title"><AlertCircle size={10} /> Segurança</div>
+                <p className="dash-warn-box-note">
+                  Use chaves com permissão apenas de <strong>Futures Trading</strong>. Nunca ative saques. Restrinja por IP de preferência.
+                </p>
+              </div>
+
+              <div className="dash-bt-section" style={{ borderBottom: 'none', paddingBottom: 0 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div>
+                    <label className="dash-param-label">API Key</label>
+                    <input
+                      type="text"
+                      value={apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                      placeholder="Sua Binance API Key..."
+                      className="dash-param-input"
+                    />
+                  </div>
+                  <div>
+                    <label className="dash-param-label">API Secret</label>
+                    <input
+                      type="password"
+                      value={apiSecret}
+                      onChange={(e) => setApiSecret(e.target.value)}
+                      placeholder="••••••••••••••••••••••••"
+                      className="dash-param-input"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Live mode toggle */}
+              <div className="dash-toggle-row" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 2, padding: '12px 14px' }}>
+                <div className="dash-toggle-info">
+                  <div className="dash-toggle-label">Modo de Operação</div>
+                  <div className="dash-toggle-desc">
+                    {liveMode
+                      ? '🔴 LIVE — Ordens reais na Binance Futures'
+                      : '🟡 PAPER — Testnet (sem dinheiro real)'}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setLiveMode(!liveMode)}
+                  className={`dash-toggle${liveMode ? ' on' : ''}`}
+                >
+                  <span className="dash-toggle-thumb" />
+                </button>
+              </div>
+
+              {liveMode && (
+                <div className="dash-danger-box">
+                  <div className="dash-danger-box-title"><Zap size={10} fill="currentColor" /> MODO LIVE ATIVADO</div>
+                  <p className="dash-param-note" style={{ marginTop: 4 }}>
+                    Ordens serão executadas com dinheiro real. Certifique-se de ter testado com PAPER trading primeiro.
                   </p>
                 </div>
+              )}
+            </div>
+          )}
 
-                <div className="bg-[#161625] rounded-xl p-4 text-xs text-gray-400 space-y-1">
-                  <p className="font-medium text-white">Como configurar:</p>
-                  <p>1. Abra o Telegram e fale com <code className="text-[#FF6B35]">@BotFather</code></p>
-                  <p>2. Digite <code className="text-[#FF6B35]">/newbot</code> e siga as instruções</p>
-                  <p>3. Copie o <strong>token</strong> e cole abaixo</p>
-                  <p>4. Inicie uma conversa com o bot e acesse:</p>
-                  <p className="font-mono text-[10px] break-all text-gray-500">
-                    https://api.telegram.org/bot&lt;TOKEN&gt;/getUpdates
-                  </p>
-                  <p>5. Copie o <strong>chat_id</strong> que aparece no JSON</p>
-                </div>
-
+          {/* ══ ABA: NOTIFICAÇÕES ══ */}
+          {tab === 'notifications' && (
+            <div className="dash-settings-content">
+              <div className="dash-settings-section-head">
+                <Bell size={12} style={{ color: 'var(--amber)' }} />
                 <div>
-                  <label className={labelClass}>Bot Token</label>
+                  <div className="dash-settings-section-title">Telegram</div>
+                  <div className="dash-settings-section-sub">Receba alertas de entradas, saídas e safe mode em tempo real.</div>
+                </div>
+              </div>
+
+              <div className="dash-settings-info-box">
+                <div className="dash-settings-info-title">Como configurar</div>
+                <div className="dash-settings-info-step"><span className="dash-settings-info-num">1</span> Abra o Telegram e fale com <code>@BotFather</code></div>
+                <div className="dash-settings-info-step"><span className="dash-settings-info-num">2</span> Digite <code>/newbot</code> e siga as instruções</div>
+                <div className="dash-settings-info-step"><span className="dash-settings-info-num">3</span> Copie o <strong>token</strong> e cole abaixo</div>
+                <div className="dash-settings-info-step"><span className="dash-settings-info-num">4</span> Inicie uma conversa com o bot e acesse a URL de getUpdates</div>
+                <div className="dash-settings-info-step"><span className="dash-settings-info-num">5</span> Copie o <strong>chat_id</strong> que aparece no JSON</div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div>
+                  <label className="dash-param-label">Bot Token</label>
                   <input
                     type="text"
                     value={telegramToken}
                     onChange={(e) => setTelegramToken(e.target.value)}
                     placeholder="123456789:AAxxxxxxxxxxxxxxxxxxxxxxx"
-                    className={inputClass}
+                    className="dash-param-input"
                   />
                 </div>
-
                 <div>
-                  <label className={labelClass}>Chat ID</label>
+                  <label className="dash-param-label">Chat ID</label>
                   <input
                     type="text"
                     value={telegramChat}
                     onChange={(e) => setTelegramChat(e.target.value)}
                     placeholder="-100xxxxxxxxxx"
-                    className={inputClass}
+                    className="dash-param-input"
                   />
                 </div>
               </div>
-            )}
+            </div>
+          )}
 
-            {/* === ABA: RISCO === */}
-            {tab === 'risk' && (
-              <div className="space-y-6">
+          {/* ══ ABA: RISCO ══ */}
+          {tab === 'risk' && (
+            <div className="dash-settings-content">
+              <div className="dash-settings-section-head">
+                <Shield size={12} style={{ color: 'var(--amber)' }} />
                 <div>
-                  <h2 className="text-lg font-bold flex items-center gap-2 mb-1">
-                    <Shield size={18} className="text-[#FF6B35]" /> Gestão de Risco Padrão
-                  </h2>
-                  <p className="text-gray-500 text-xs">
-                    Esses valores são usados pelo Vercel Cron Job (ciclo automático).
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  {[
-                    { label: 'Risco por Operação (%)', value: riskPct,  set: setRiskPct,  min: 0.1, max: 5,   step: 0.1 },
-                    { label: 'Stop Loss (%)',           value: slPct,   set: setSlPct,    min: 0.5, max: 10,  step: 0.5 },
-                    { label: 'Max Drawdown (%)',        value: maxDD,   set: setMaxDD,    min: 5,   max: 30,  step: 1   },
-                    { label: 'Mín. Risco:Retorno',      value: rrRatio, set: setRrRatio,  min: 1,   max: 5,   step: 0.5 },
-                  ].map((field) => (
-                    <div key={field.label}>
-                      <label className={labelClass}>{field.label}</label>
-                      <input
-                        type="number"
-                        value={field.value}
-                        onChange={(e) => field.set(parseFloat(e.target.value) || 0)}
-                        min={field.min}
-                        max={field.max}
-                        step={field.step}
-                        className={inputClass}
-                      />
-                    </div>
-                  ))}
-                </div>
-
-                <div className="bg-[#161625] rounded-xl p-4 text-xs text-gray-500 space-y-1">
-                  <p>• Com banca de <span className="text-white">$1.000</span> e risco de <span className="text-[#FF6B35]">{riskPct}%</span>: risco por op = <span className="text-white">${(10 * riskPct).toFixed(2)}</span></p>
-                  <p>• Stop Loss de <span className="text-[#FF6B35]">{slPct}%</span> com R:R de <span className="text-[#FF6B35]">{rrRatio}</span>: alvo = <span className="text-white">{slPct * rrRatio}%</span></p>
-                  <p>• Safe Mode ativa automaticamente com drawdown &gt; <span className="text-red-400">{maxDD}%</span></p>
-                </div>
-
-                {/* ── ML Model ── */}
-                <div className="border-t border-[#1F1F2E] pt-6">
-                  <h3 className="text-sm font-bold flex items-center gap-2 mb-1">
-                    <Brain size={16} className="text-[#FF6B35]" /> Modelo de Machine Learning
-                  </h3>
-                  <p className="text-gray-500 text-xs mb-4">
-                    Treina a Regressão Logística com trades históricos do Supabase.
-                    Recomendado após acumular ≥ 50 trades fechados.
-                  </p>
-
-                  {mlStatus && (
-                    <div className={`rounded-xl p-3 text-xs mb-3 ${mlStatus.ready ? 'bg-green-900/20 border border-green-800/40 text-green-400' : 'bg-[#161625] text-gray-400'}`}>
-                      {mlStatus.ready
-                        ? `✅ Modelo ativo — ${mlStatus.trainedOn} amostras | Acurácia: ${mlStatus.accuracy}%`
-                        : '🧠 Sem modelo treinado — usando predição neutra (50%)'}
-                    </div>
-                  )}
-
-                  <button
-                    onClick={handleTrainML}
-                    disabled={mlTraining}
-                    className="flex items-center gap-2 bg-[#161625] hover:bg-[#1F1F2E] border border-[#2A2A3C] hover:border-[#FF6B35] text-white px-4 py-2.5 rounded-xl text-sm transition-colors disabled:opacity-50"
-                  >
-                    <Brain size={14} className={mlTraining ? 'animate-pulse text-[#FF6B35]' : ''} />
-                    {mlTraining ? 'Treinando modelo...' : 'Treinar ML agora'}
-                  </button>
-
-                  {mlResult && (
-                    <div className={`mt-3 rounded-xl p-3 text-xs ${mlResult.error ? 'bg-red-900/20 border border-red-700/40 text-red-400' : mlResult.success === false ? 'bg-yellow-900/20 border border-yellow-700/40 text-yellow-400' : 'bg-green-900/20 border border-green-700/40 text-green-400'}`}>
-                      {mlResult.error ?? mlResult.message}
-                    </div>
-                  )}
+                  <div className="dash-settings-section-title">Gestão de Risco Padrão</div>
+                  <div className="dash-settings-section-sub">Esses valores são usados pelo Vercel Cron Job (ciclo automático).</div>
                 </div>
               </div>
-            )}
 
-            {/* Botão salvar + feedback */}
-            <div className="flex items-center gap-3 mt-8 pt-6 border-t border-[#1F1F2E]">
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="bg-[#FF6B35] hover:bg-[#e55a2a] disabled:opacity-50 text-white font-bold px-6 py-2.5 rounded-xl text-sm transition-colors"
-              >
-                {saving ? 'Salvando...' : 'Salvar configurações'}
-              </button>
+              <div className="dash-param-grid">
+                {([
+                  { label: 'Risco por Operação (%)', value: riskPct,  set: setRiskPct,  min: 0.1, max: 5,  step: 0.1 },
+                  { label: 'Stop Loss (%)',           value: slPct,   set: setSlPct,    min: 0.5, max: 10, step: 0.5 },
+                  { label: 'Max Drawdown (%)',        value: maxDD,   set: setMaxDD,    min: 5,   max: 30, step: 1   },
+                  { label: 'Mín. Risco:Retorno',      value: rrRatio, set: setRrRatio,  min: 1,   max: 5,  step: 0.5 },
+                ] as const).map((f) => (
+                  <div key={f.label}>
+                    <label className="dash-param-label">{f.label}</label>
+                    <input
+                      type="number"
+                      value={f.value}
+                      onChange={(e) => (f.set as (v: number) => void)(parseFloat(e.target.value) || 0)}
+                      min={f.min} max={f.max} step={f.step}
+                      className="dash-param-input"
+                    />
+                  </div>
+                ))}
+              </div>
 
-              {saved && (
-                <span className="flex items-center gap-1.5 text-green-400 text-sm">
-                  <CheckCircle size={16} /> Salvo com sucesso
-                </span>
-              )}
-              {error && (
-                <span className="flex items-center gap-1.5 text-red-400 text-sm">
-                  <AlertCircle size={16} /> {error}
-                </span>
-              )}
+              {/* Calculadora */}
+              <div className="dash-settings-calc">
+                <div className="dash-settings-calc-row">
+                  <span>Banca $1.000 × risco {riskPct}%</span>
+                  <span style={{ color: 'var(--text)' }}>${(10 * riskPct).toFixed(2)} por op</span>
+                </div>
+                <div className="dash-settings-calc-row">
+                  <span>SL {slPct}% com R:R {rrRatio}×</span>
+                  <span style={{ color: 'var(--amber)' }}>alvo +{(slPct * rrRatio).toFixed(1)}%</span>
+                </div>
+                <div className="dash-settings-calc-row">
+                  <span>Safe mode ativa acima de drawdown</span>
+                  <span style={{ color: 'var(--red)' }}>{maxDD}%</span>
+                </div>
+              </div>
+
+              {/* ML */}
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 20 }}>
+                <div className="dash-settings-section-head" style={{ marginBottom: 12 }}>
+                  <Brain size={12} style={{ color: 'var(--amber)' }} />
+                  <div>
+                    <div className="dash-settings-section-title">Modelo de Machine Learning</div>
+                    <div className="dash-settings-section-sub">Treina a Regressão Logística com trades históricos do Supabase. Recomendado após ≥ 50 trades fechados.</div>
+                  </div>
+                </div>
+
+                {mlStatus && (
+                  <div
+                    className={mlStatus.ready ? 'dash-asset-alert green' : 'dash-asset-alert blue'}
+                    style={{ marginBottom: 12 }}
+                  >
+                    {mlStatus.ready
+                      ? `✓ Modelo ativo — ${mlStatus.trainedOn} amostras · Acurácia: ${mlStatus.accuracy}%`
+                      : '— Sem modelo treinado · usando predição neutra (50%)'}
+                  </div>
+                )}
+
+                <button
+                  onClick={handleTrainML}
+                  disabled={mlTraining}
+                  className="dash-settings-ml-btn"
+                >
+                  <Brain size={11} style={mlTraining ? { color: 'var(--amber)', animation: 'dash-spin 1.5s linear infinite' } : {}} />
+                  {mlTraining ? 'Treinando modelo...' : 'Treinar ML agora'}
+                </button>
+
+                {mlResult && (
+                  <div
+                    className={mlResult.error ? 'dash-error-banner' : 'dash-asset-alert green'}
+                    style={{ marginTop: 8 }}
+                  >
+                    {mlResult.error ?? mlResult.message}
+                  </div>
+                )}
+              </div>
             </div>
+          )}
+
+          {/* ── FOOTER SALVAR ── */}
+          <div className="dash-settings-save-row">
+            <button onClick={handleSave} disabled={saving} className="dash-run-btn" style={{ width: 'auto', padding: '10px 28px' }}>
+              {saving ? 'Salvando...' : 'Salvar configurações'}
+            </button>
+            {saved && (
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--green)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                <CheckCircle size={12} /> Salvo com sucesso
+              </span>
+            )}
+            {error && (
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--red)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                <AlertCircle size={12} /> {error}
+              </span>
+            )}
           </div>
+
         </div>
       </div>
     </div>
