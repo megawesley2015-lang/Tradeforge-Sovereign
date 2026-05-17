@@ -2190,3 +2190,214 @@
   font-family: var(--mono);
   font-size: 10px;
 }
+
+/* ─── ARBITRAGEM ─────────────────────────────────────────── */
+
+.dash-disclaimer {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: rgba(245,166,35,0.06);
+  border: 1px solid rgba(245,166,35,0.2);
+  border-radius: 2px;
+  padding: 12px 14px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: rgba(245,166,35,0.8);
+  line-height: 1.6;
+}
+.dash-disclaimer svg { flex-shrink: 0; margin-top: 1px; }
+
+.dash-countdown {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--muted);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  padding: 4px 10px;
+  border-radius: 2px;
+}
+
+/* Opportunity card */
+.dash-arb-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: 2px;
+  padding: 16px;
+}
+.dash-arb-card.profitable {
+  border-left-color: var(--green);
+  background: rgba(34,197,94,0.04);
+}
+
+.dash-arb-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.dash-arb-symbol {
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+.dash-arb-pair {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+.dash-arb-profitable-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--mono);
+  font-size: 7px;
+  font-weight: 600;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--green);
+  background: rgba(34,197,94,0.10);
+  border: 1px solid rgba(34,197,94,0.25);
+  padding: 2px 8px;
+  border-radius: 2px;
+  margin-left: 8px;
+}
+.dash-arb-spread-pct {
+  font-family: var(--mono);
+  font-size: 18px;
+  font-weight: 600;
+  text-align: right;
+}
+.dash-arb-spread-lbl {
+  font-family: var(--mono);
+  font-size: 8px;
+  color: var(--muted);
+  text-align: right;
+}
+
+/* Rota compra → venda */
+.dash-arb-route {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.dash-arb-route-node {
+  flex: 1;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 10px 12px;
+  text-align: center;
+}
+.dash-arb-route-node-lbl {
+  font-family: var(--mono);
+  font-size: 7px;
+  text-transform: uppercase;
+  letter-spacing: 0.10em;
+  color: var(--muted);
+  margin-bottom: 5px;
+}
+.dash-arb-route-node-price {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text);
+  margin-top: 4px;
+}
+.dash-arb-route-arrow {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+/* Exchange badge */
+.dash-ex-badge {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+  border-radius: 2px;
+}
+
+/* Métricas 3-col */
+.dash-arb-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.dash-arb-metric {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 8px 10px;
+  text-align: center;
+}
+.dash-arb-metric-lbl {
+  font-family: var(--mono);
+  font-size: 7px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin-bottom: 3px;
+}
+.dash-arb-metric-val {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted-hi);
+}
+
+/* Preços por exchange */
+.dash-arb-prices {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.dash-arb-price-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 6px 10px;
+}
+.dash-arb-price-item {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+}
+.dash-arb-price-item span {
+  color: var(--muted-hi);
+}
+
+/* Oportunidades grid */
+.dash-arb-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 12px;
+}
+
+/* Empty state */
+.dash-arb-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  color: var(--muted);
+  text-align: center;
+}
+.dash-arb-empty p { font-family: var(--mono); font-size: 10px; }
