@@ -5,16 +5,15 @@ import Link from 'next/link';
 import {
   Activity, Radio, ChevronLeft, Filter,
   TrendingUp, TrendingDown, Minus, RefreshCw,
-  Bell, BellOff, BarChart2, Zap
+  Bell, BellOff
 } from 'lucide-react';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { SignalCard, SignalData } from '@/components/trading/SignalCard';
 import { RiskGuard } from '@/components/trading/RiskGuard';
-import { StatCard } from '@/components/trading/StatCard';
+import '@/components/dashboard/dashboard.css';
 
 const supabase = getSupabaseBrowserClient();
 
-// ─── Tipos internos ────────────────────────────────────────────
 interface RiskConfig {
   available_capital: number;
   daily_loss_amount: number;
@@ -27,31 +26,21 @@ interface RiskConfig {
 
 type DirectionFilter = 'ALL' | 'BUY' | 'SELL';
 
-// ─── Helpers ─────────────────────────────────────────────────
-function pulse(direction: 'BUY' | 'SELL' | 'HOLD') {
-  if (direction === 'BUY')  return 'text-green-400';
-  if (direction === 'SELL') return 'text-red-400';
-  return 'text-gray-400';
-}
-
-// ─── Componente principal ─────────────────────────────────────
 export default function SignalsDashboard() {
-  const [signals, setSignals]           = useState<SignalData[]>([]);
-  const [newSignalIds, setNewSignalIds] = useState<Set<string>>(new Set());
-  const [filter, setFilter]             = useState<DirectionFilter>('ALL');
-  const [isConnected, setIsConnected]   = useState(false);
-  const [soundOn, setSoundOn]           = useState(false);
-  const [loading, setLoading]           = useState(true);
-  const [riskConfig, setRiskConfig]     = useState<RiskConfig | null>(null);
+  const [signals, setSignals]             = useState<SignalData[]>([]);
+  const [newSignalIds, setNewSignalIds]   = useState<Set<string>>(new Set());
+  const [filter, setFilter]               = useState<DirectionFilter>('ALL');
+  const [isConnected, setIsConnected]     = useState(false);
+  const [soundOn, setSoundOn]             = useState(false);
+  const [loading, setLoading]             = useState(true);
+  const [riskConfig, setRiskConfig]       = useState<RiskConfig | null>(null);
   const [openPositions, setOpenPositions] = useState(0);
-  const [todayStats, setTodayStats]     = useState({ buys: 0, sells: 0, avgStrength: 0 });
+  const [todayStats, setTodayStats]       = useState({ buys: 0, sells: 0, avgStrength: 0 });
   const audioRef = useRef<AudioContext | null>(null);
 
-  // ─── Busca inicial de dados ─────────────────────────────────
   const fetchInitialData = useCallback(async () => {
     setLoading(true);
     try {
-      // Sinais ativos
       const { data: signalsData } = await supabase
         .from('signals')
         .select('*')
@@ -61,13 +50,9 @@ export default function SignalsDashboard() {
 
       if (signalsData) {
         setSignals(signalsData as SignalData[]);
-
-        // Estatísticas do dia
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        const todaySignals = signalsData.filter(
-          (s) => new Date(s.timestamp) >= today
-        );
+        const todaySignals = signalsData.filter((s) => new Date(s.timestamp) >= today);
         const buys   = todaySignals.filter((s) => s.direction === 'BUY').length;
         const sells  = todaySignals.filter((s) => s.direction === 'SELL').length;
         const avgStr = todaySignals.length > 0
@@ -76,21 +61,17 @@ export default function SignalsDashboard() {
         setTodayStats({ buys, sells, avgStrength: Math.round(avgStr * 100) });
       }
 
-      // Configuração de risco (pega primeiro registro disponível)
       const { data: riskData } = await supabase
         .from('risk_config')
         .select('*')
         .limit(1)
         .maybeSingle();
-
       if (riskData) setRiskConfig(riskData as RiskConfig);
 
-      // Posições abertas
       const { count } = await supabase
         .from('positions')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'OPEN');
-
       setOpenPositions(count ?? 0);
     } catch (err) {
       console.error('[Signals] Erro ao buscar dados:', err);
@@ -99,71 +80,45 @@ export default function SignalsDashboard() {
     }
   }, []);
 
-  // ─── Supabase Realtime — escuta novos sinais ────────────────
   useEffect(() => {
     fetchInitialData();
 
     const channel = supabase
       .channel('signals-live')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'signals' },
-        (payload) => {
-          const newSignal = payload.new as SignalData;
-
-          // Adiciona ao topo da lista
-          setSignals((prev) => [newSignal, ...prev.slice(0, 49)]);
-
-          // Marca como novo por 10 segundos
-          setNewSignalIds((prev) => new Set(prev).add(newSignal.id));
-          setTimeout(() => {
-            setNewSignalIds((prev) => {
-              const next = new Set(prev);
-              next.delete(newSignal.id);
-              return next;
-            });
-          }, 10000);
-
-          // Atualiza stats do dia
-          setTodayStats((prev) => {
-            const newBuys  = newSignal.direction === 'BUY'  ? prev.buys  + 1 : prev.buys;
-            const newSells = newSignal.direction === 'SELL' ? prev.sells + 1 : prev.sells;
-            return { buys: newBuys, sells: newSells, avgStrength: prev.avgStrength };
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'signals' }, (payload) => {
+        const newSignal = payload.new as SignalData;
+        setSignals((prev) => [newSignal, ...prev.slice(0, 49)]);
+        setNewSignalIds((prev) => new Set(prev).add(newSignal.id));
+        setTimeout(() => {
+          setNewSignalIds((prev) => {
+            const next = new Set(prev);
+            next.delete(newSignal.id);
+            return next;
           });
-
-          // Beep de notificação
-          if (soundOn && newSignal.direction !== 'HOLD') {
-            playBeep(newSignal.direction === 'BUY' ? 880 : 440);
-          }
+        }, 10000);
+        setTodayStats((prev) => ({
+          buys:  newSignal.direction === 'BUY'  ? prev.buys  + 1 : prev.buys,
+          sells: newSignal.direction === 'SELL' ? prev.sells + 1 : prev.sells,
+          avgStrength: prev.avgStrength,
+        }));
+        if (soundOn && newSignal.direction !== 'HOLD') {
+          playBeep(newSignal.direction === 'BUY' ? 880 : 440);
         }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'signals' },
-        (payload) => {
-          const updated = payload.new as SignalData;
-          setSignals((prev) =>
-            prev.map((s) => (s.id === updated.id ? updated : s))
-          );
-        }
-      )
-      .subscribe((status) => {
-        setIsConnected(status === 'SUBSCRIBED');
-      });
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'signals' }, (payload) => {
+        const updated = payload.new as SignalData;
+        setSignals((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+      })
+      .subscribe((status) => setIsConnected(status === 'SUBSCRIBED'));
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [fetchInitialData, soundOn]);
 
-  // ─── Beep de notificação ────────────────────────────────────
   function playBeep(freq: number) {
     try {
-      if (!audioRef.current) {
-        audioRef.current = new AudioContext();
-      }
-      const ctx = audioRef.current;
-      const osc = ctx.createOscillator();
+      if (!audioRef.current) audioRef.current = new AudioContext();
+      const ctx  = audioRef.current;
+      const osc  = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain);
       gain.connect(ctx.destination);
@@ -176,7 +131,6 @@ export default function SignalsDashboard() {
     } catch (_) {}
   }
 
-  // ─── Filtragem ──────────────────────────────────────────────
   const filteredSignals = signals.filter((s) =>
     filter === 'ALL' ? true : s.direction === filter
   );
@@ -184,211 +138,169 @@ export default function SignalsDashboard() {
   const buyCount  = signals.filter((s) => s.direction === 'BUY').length;
   const sellCount = signals.filter((s) => s.direction === 'SELL').length;
 
-  // ─── Loading ────────────────────────────────────────────────
   if (loading) {
-    return (
-      <div className="min-h-screen bg-[#07070D] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-8 h-8 border-2 border-[#FF6B35] border-t-transparent rounded-full animate-spin" />
-          <p className="text-gray-500 text-sm font-mono">Conectando ao mercado...</p>
-        </div>
-      </div>
-    );
+    return <div style={{ minHeight: '100vh', background: '#080C12', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="dash-spinner" style={{ width: 20, height: 20, borderColor: 'rgba(245,166,35,0.2)', borderTopColor: '#F5A623' }} />
+    </div>;
   }
 
   return (
-    <div className="min-h-screen bg-[#07070D] text-white p-6 font-sans">
-      <div className="max-w-7xl mx-auto">
+    <div className="dash-root">
 
-        {/* ─── HEADER ──────────────────────────────────────── */}
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
-          <div className="flex items-center gap-4">
-            <Link
-              href="/trading/dashboard"
-              className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-[#FF6B35] transition-colors"
-            >
-              <ChevronLeft size={16} /> Dashboard
-            </Link>
-            <div>
-              <h1 className="text-2xl font-black">
-                Sinais <span className="text-[#FF6B35]">Ao Vivo</span>
-              </h1>
-              <p className="text-gray-600 text-xs font-mono">
-                RSI · MACD · Bollinger Bands · ATR
-              </p>
-            </div>
-          </div>
+      {/* ─── METRIC STRIP (stats do dia) ─── */}
+      <div className="dash-metrics">
+        <div className="dash-metric">
+          <span className="dash-metric-label">Sinais Hoje</span>
+          <span className="dash-metric-val amber">{todayStats.buys + todayStats.sells}</span>
+        </div>
+        <div className="dash-metric">
+          <span className="dash-metric-label">Compras</span>
+          <span className="dash-metric-val green">{todayStats.buys}</span>
+        </div>
+        <div className="dash-metric">
+          <span className="dash-metric-label">Vendas</span>
+          <span className="dash-metric-val red">{todayStats.sells}</span>
+        </div>
+        <div className="dash-metric">
+          <span className="dash-metric-label">Força Média</span>
+          <span className={`dash-metric-val ${
+            todayStats.avgStrength >= 70 ? 'green'
+            : todayStats.avgStrength >= 40 ? 'amber'
+            : ''
+          }`}>{todayStats.avgStrength}%</span>
+        </div>
+        <div className="dash-metric">
+          <span className="dash-metric-label">Capital</span>
+          <span className="dash-metric-val">R$ {(riskConfig?.available_capital ?? 0).toFixed(2)}</span>
+        </div>
+        <div className="dash-metric" style={{ borderRight: 'none', marginLeft: 'auto' }}>
+          {/* empty slot — could add more metrics later */}
+        </div>
+      </div>
 
-          {/* Status da conexão Realtime */}
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setSoundOn((p) => !p)}
-              className="p-2 rounded-xl bg-[#0F0F1A] border border-[#1F1F2E] text-gray-500 hover:text-[#FF6B35] transition-colors"
-              title={soundOn ? 'Desativar sons' : 'Ativar sons'}
-            >
-              {soundOn ? <Bell size={16} /> : <BellOff size={16} />}
-            </button>
-            <button
-              onClick={fetchInitialData}
-              className="p-2 rounded-xl bg-[#0F0F1A] border border-[#1F1F2E] text-gray-500 hover:text-[#FF6B35] transition-colors"
-              title="Atualizar"
-            >
-              <RefreshCw size={16} />
-            </button>
-            <div className={`flex items-center gap-2 text-xs px-3 py-2 rounded-xl border font-mono ${
-              isConnected
-                ? 'bg-green-500/10 border-green-500/30 text-green-400'
-                : 'bg-red-500/10 border-red-500/30 text-red-400'
-            }`}>
-              <Radio size={12} className={isConnected ? 'animate-pulse' : ''} />
-              {isConnected ? 'REALTIME ON' : 'RECONECTANDO...'}
-            </div>
+      {/* ─── INNER HEADER ─── */}
+      <div className="dash-page-header">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <Link href="/trading/dashboard" className="dash-breadcrumb">
+            <ChevronLeft size={12} /> Dashboard
+          </Link>
+          <div className="dash-page-title">
+            <Radio size={13} /> Sinais Ao Vivo
           </div>
         </div>
 
-        {/* ─── STATS RÁPIDAS ────────────────────────────────── */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-          <StatCard
-            label="Sinais Hoje"
-            value={`${todayStats.buys + todayStats.sells}`}
-            icon={<Activity size={18} />}
-            colorClass="text-[#FF6B35]"
-          />
-          <StatCard
-            label="BUY / SELL"
-            value={`${todayStats.buys} / ${todayStats.sells}`}
-            icon={<Zap size={18} />}
-            colorClass="text-white"
-          />
-          <StatCard
-            label="Força Média"
-            value={`${todayStats.avgStrength}%`}
-            icon={<BarChart2 size={18} />}
-            colorClass={
-              todayStats.avgStrength >= 70 ? 'text-green-400' :
-              todayStats.avgStrength >= 40 ? 'text-yellow-400' :
-              'text-gray-400'
-            }
-          />
-          <StatCard
-            label="Capital"
-            value={`R$ ${(riskConfig?.available_capital ?? 0).toFixed(2)}`}
-            icon={<TrendingUp size={18} />}
-            colorClass="text-white"
-          />
+        <div className="dash-page-actions">
+          <button
+            onClick={() => setSoundOn((p) => !p)}
+            className={`dash-icon-btn${soundOn ? ' active' : ''}`}
+            title={soundOn ? 'Desativar som' : 'Ativar som'}
+          >
+            {soundOn ? <Bell size={13} /> : <BellOff size={13} />}
+          </button>
+          <button onClick={fetchInitialData} className="dash-icon-btn" title="Atualizar">
+            <RefreshCw size={13} />
+          </button>
+          <div className={`dash-realtime-badge ${isConnected ? 'on' : 'off'}`}>
+            <Radio size={10} style={isConnected ? { animation: 'dash-blink 2s infinite' } : {}} />
+            {isConnected ? 'Realtime On' : 'Reconectando...'}
+          </div>
         </div>
+      </div>
 
-        {/* ─── LAYOUT PRINCIPAL ─────────────────────────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* ─── BODY ─── */}
+      <div className="dash-signals-body">
 
-          {/* ─── COLUNA ESQUERDA: SINAIS ─────────────────── */}
-          <div className="lg:col-span-2">
+        {/* LEFT: filter + feed */}
+        <div className="dash-signals-left">
 
-            {/* Filtros */}
-            <div className="flex items-center gap-3 mb-4">
-              <Filter size={14} className="text-gray-500" />
-              {(['ALL', 'BUY', 'SELL'] as DirectionFilter[]).map((f) => (
-                <button
-                  key={f}
-                  onClick={() => setFilter(f)}
-                  className={`text-xs px-4 py-1.5 rounded-full font-bold transition-all border ${
-                    filter === f
-                      ? f === 'BUY'
-                        ? 'bg-green-500/20 text-green-400 border-green-500/40'
-                        : f === 'SELL'
-                        ? 'bg-red-500/20 text-red-400 border-red-500/40'
-                        : 'bg-[#FF6B35]/20 text-[#FF6B35] border-[#FF6B35]/40'
-                      : 'bg-transparent text-gray-500 border-[#1F1F2E] hover:border-gray-500'
-                  }`}
-                >
-                  {f === 'ALL' ? `Todos (${signals.length})` :
-                   f === 'BUY' ? `▲ BUY (${buyCount})` :
-                   `▼ SELL (${sellCount})`}
-                </button>
+          {/* Filter bar */}
+          <div className="dash-filter-bar">
+            <Filter size={12} className="dash-filter-icon" />
+            {(['ALL', 'BUY', 'SELL'] as DirectionFilter[]).map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`dash-filter-btn${filter === f ? ` active-${f.toLowerCase()}` : ''}`}
+              >
+                {f === 'ALL'  ? `Todos (${signals.length})`
+                 : f === 'BUY' ? `Compra (${buyCount})`
+                 : `Venda (${sellCount})`}
+              </button>
+            ))}
+          </div>
+
+          {/* Signal feed */}
+          {filteredSignals.length === 0 ? (
+            <div className="dash-signal-empty">
+              <Activity size={28} />
+              <p>Nenhum sinal ativo no momento.</p>
+              <p style={{ opacity: 0.5 }}>O engine analisa novos candles automaticamente.</p>
+            </div>
+          ) : (
+            <div className="dash-signal-feed">
+              {filteredSignals.map((signal) => (
+                <SignalCard
+                  key={signal.id}
+                  signal={signal}
+                  isNew={newSignalIds.has(signal.id)}
+                />
               ))}
             </div>
+          )}
+        </div>
 
-            {/* Feed de sinais */}
-            <div className="space-y-4">
-              {filteredSignals.length === 0 ? (
-                <div className="bg-[#0F0F1A] border border-[#1F1F2E] rounded-2xl p-16 text-center">
-                  <Activity size={32} className="text-gray-700 mx-auto mb-3" />
-                  <p className="text-gray-600 font-mono text-sm">
-                    Nenhum sinal ativo no momento.
-                  </p>
-                  <p className="text-gray-700 text-xs mt-1">
-                    O engine analisa novos candles automaticamente.
-                  </p>
-                </div>
-              ) : (
-                filteredSignals.map((signal) => (
-                  <SignalCard
-                    key={signal.id}
-                    signal={signal}
-                    isNew={newSignalIds.has(signal.id)}
-                  />
-                ))
-              )}
+        {/* RIGHT: risk guard + legend */}
+        <div className="dash-signals-right">
+          <RiskGuard
+            capital={riskConfig?.available_capital ?? 0}
+            dailyLoss={riskConfig?.daily_loss_amount ?? 0}
+            openPositions={openPositions}
+            capitalFloor={riskConfig?.min_capital_floor ?? undefined}
+            maxRiskPct={riskConfig?.max_risk_per_trade ?? 0.02}
+            maxDailyLossPct={riskConfig?.max_daily_loss_pct ?? 0.06}
+            maxOpenPositions={riskConfig?.max_open_positions ?? 3}
+            tradingHalted={riskConfig?.trading_halted ?? false}
+          />
+
+          {/* Legend */}
+          <div className="dash-legend">
+            <div className="dash-legend-title">
+              <Activity size={11} /> Como ler os sinais
             </div>
-          </div>
-
-          {/* ─── COLUNA DIREITA: RISKGUARD ───────────────── */}
-          <div className="space-y-6">
-            <RiskGuard
-              capital={riskConfig?.available_capital ?? 0}
-              dailyLoss={riskConfig?.daily_loss_amount ?? 0}
-              openPositions={openPositions}
-              capitalFloor={riskConfig?.min_capital_floor ?? undefined}
-              maxRiskPct={riskConfig?.max_risk_per_trade ?? 0.02}
-              maxDailyLossPct={riskConfig?.max_daily_loss_pct ?? 0.06}
-              maxOpenPositions={riskConfig?.max_open_positions ?? 3}
-              tradingHalted={riskConfig?.trading_halted ?? false}
-            />
-
-            {/* Como ler os sinais */}
-            <div className="bg-[#0F0F1A] border border-[#1F1F2E] rounded-3xl p-5">
-              <p className="text-sm font-bold mb-4 flex items-center gap-2">
-                <Activity size={14} className="text-[#FF6B35]" />
-                Como ler os sinais
-              </p>
-              <div className="space-y-3 text-xs font-mono">
-                <div className="flex items-start gap-3">
-                  <span className={`mt-0.5 shrink-0 ${pulse('BUY')}`}>
-                    <TrendingUp size={12} />
-                  </span>
-                  <div>
-                    <p className="text-green-400 font-bold">BUY</p>
-                    <p className="text-gray-600">≥2 indicadores apontando compra. RSI &lt;30, MACD bullish cross ou BB na banda inferior.</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <span className={`mt-0.5 shrink-0 ${pulse('SELL')}`}>
-                    <TrendingDown size={12} />
-                  </span>
-                  <div>
-                    <p className="text-red-400 font-bold">SELL</p>
-                    <p className="text-gray-600">≥2 indicadores apontando venda. RSI &gt;70, MACD bearish cross ou BB na banda superior.</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <span className={`mt-0.5 shrink-0 ${pulse('HOLD')}`}>
-                    <Minus size={12} />
-                  </span>
-                  <div>
-                    <p className="text-gray-400 font-bold">HOLD</p>
-                    <p className="text-gray-600">Indicadores em conflito ou mercado sem tendência clara. Aguardar.</p>
-                  </div>
-                </div>
-                <div className="border-t border-[#1F1F2E] pt-3 space-y-1 text-gray-600">
-                  <p><span className="text-white">Força 0-40%</span> → sinal fraco, usar cautela</p>
-                  <p><span className="text-yellow-400">Força 40-70%</span> → sinal moderado</p>
-                  <p><span className="text-green-400">Força 70-100%</span> → sinal forte, vários indicadores concordando</p>
-                </div>
-              </div>
+            <div className="dash-legend-item">
+              <span className="dash-legend-item-dir" style={{ color: 'var(--green)' }}>
+                <TrendingUp size={11} /> BUY
+              </span>
+              <span className="dash-legend-item-desc">
+                ≥2 indicadores apontando compra. RSI &lt;30, MACD bullish ou BB banda inferior.
+              </span>
+            </div>
+            <div className="dash-legend-item">
+              <span className="dash-legend-item-dir" style={{ color: 'var(--red)' }}>
+                <TrendingDown size={11} /> SELL
+              </span>
+              <span className="dash-legend-item-desc">
+                ≥2 indicadores apontando venda. RSI &gt;70, MACD bearish ou BB banda superior.
+              </span>
+            </div>
+            <div className="dash-legend-item">
+              <span className="dash-legend-item-dir" style={{ color: 'var(--muted-hi)' }}>
+                <Minus size={11} /> HOLD
+              </span>
+              <span className="dash-legend-item-desc">
+                Indicadores em conflito. Aguardar confirmação.
+              </span>
+            </div>
+            <div className="dash-legend-divider" />
+            <div className="dash-legend-strength">
+              <span style={{ color: 'var(--muted-hi)' }}>0–40%</span> sinal fraco, usar cautela<br />
+              <span style={{ color: '#FACC15' }}>40–70%</span> sinal moderado<br />
+              <span style={{ color: 'var(--green)' }}>70–100%</span> sinal forte, múltiplos indicadores
             </div>
           </div>
         </div>
       </div>
+
     </div>
   );
 }
