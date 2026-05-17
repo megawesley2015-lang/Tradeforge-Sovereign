@@ -1744,3 +1744,449 @@
   grid-template-columns: 1fr 1fr;
   gap: 10px;
 }
+
+/* ─── TAB BAR ─── */
+.dash-tab-bar {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  flex-shrink: 0;
+}
+
+.dash-tab-btn {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  padding: 0 20px;
+  height: 40px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  margin-bottom: -1px;
+}
+
+.dash-tab-btn:hover { color: var(--text); }
+.dash-tab-btn.active { color: var(--amber); border-bottom-color: var(--amber); }
+
+/* ─── LIVE DEMO LAYOUT ─── */
+.dash-live-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.dash-live-badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--mono);
+  font-size: 8px;
+  font-weight: 500;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--green);
+  background: rgba(34,197,94,0.08);
+  border: 1px solid rgba(34,197,94,0.2);
+  padding: 3px 8px;
+  border-radius: 2px;
+}
+
+.dash-live-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--green);
+  animation: dash-blink 1.5s infinite;
+}
+
+/* ─── SECTION HEADERS ─── */
+.dash-section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted-hi);
+  margin-bottom: 8px;
+}
+
+.dash-section-head-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--blue);
+  animation: dash-blink 1.5s infinite;
+}
+
+/* ─── TRADE CARD ─── */
+.dash-trade-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: 2px;
+  padding: 14px 16px;
+  margin-bottom: 6px;
+  transition: background 0.15s;
+}
+
+.dash-trade-card:last-child { margin-bottom: 0; }
+.dash-trade-card:hover { background: var(--surface2); }
+.dash-trade-card.long  { border-left-color: var(--green); }
+.dash-trade-card.short { border-left-color: var(--red); }
+
+.dash-trade-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.dash-trade-head-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dash-trade-symbol {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.dash-trade-signal {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+}
+
+.dash-trade-signal.long  { color: var(--green); }
+.dash-trade-signal.short { color: var(--red); }
+
+.dash-trade-status-badge {
+  font-family: var(--mono);
+  font-size: 7px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 2px;
+}
+
+.dash-trade-status-badge.open   { background: rgba(59,130,246,0.10); color: var(--blue); border: 1px solid rgba(59,130,246,0.25); }
+.dash-trade-status-badge.win    { background: rgba(34,197,94,0.10);  color: var(--green); border: 1px solid rgba(34,197,94,0.25); }
+.dash-trade-status-badge.loss   { background: rgba(239,68,68,0.10);  color: var(--red);   border: 1px solid rgba(239,68,68,0.25); }
+.dash-trade-status-badge.time   { background: rgba(250,204,21,0.10); color: #FACC15;      border: 1px solid rgba(250,204,21,0.25); }
+.dash-trade-status-badge.other  { background: rgba(74,90,114,0.15);  color: var(--muted-hi); border: 1px solid var(--border); }
+
+.dash-risk-off-tag {
+  font-family: var(--mono);
+  font-size: 7px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #FB923C;
+  background: rgba(251,146,60,0.10);
+  border: 1px solid rgba(251,146,60,0.25);
+  padding: 2px 6px;
+  border-radius: 2px;
+}
+
+.dash-trade-pnl {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: right;
+}
+
+.dash-trade-pnl.pos { color: var(--green); }
+.dash-trade-pnl.neg { color: var(--red); }
+
+.dash-trade-interval {
+  font-family: var(--mono);
+  font-size: 8px;
+  color: var(--muted);
+  text-align: right;
+  margin-top: 2px;
+}
+
+/* Trade data grid */
+.dash-trade-data {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.dash-trade-data-item-label {
+  font-family: var(--mono);
+  font-size: 7px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 3px;
+}
+
+.dash-trade-data-item-val {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--muted-hi);
+}
+
+.dash-trade-data-item-val.entry { color: var(--text); }
+.dash-trade-data-item-val.stop  { color: var(--red); }
+.dash-trade-data-item-val.tp    { color: var(--green); }
+
+/* ADX inline bar */
+.dash-adx-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dash-adx-track {
+  width: 40px;
+  height: 2px;
+  background: var(--border);
+  border-radius: 1px;
+  overflow: hidden;
+}
+
+.dash-adx-fill { height: 100%; border-radius: 1px; }
+
+.dash-trade-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--muted);
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+/* ─── SCANNER TABLE ─── */
+.dash-scanner-wrap {
+  overflow-x: auto;
+}
+
+.dash-scanner-note {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+
+/* ─── LIVE EMPTY ─── */
+.dash-live-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  gap: 10px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.dash-live-empty svg { opacity: 0.2; }
+.dash-live-empty p { font-family: var(--mono); font-size: 11px; }
+
+/* ─── ERROR BANNER ─── */
+.dash-error-banner {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--red);
+  background: rgba(239,68,68,0.08);
+  border: 1px solid rgba(239,68,68,0.2);
+  border-radius: 2px;
+  padding: 10px 14px;
+}
+
+/* ─── LIVE DEMO: melhorias visuais ─────────────────────── */
+
+/* Tab bar como pills */
+.dash-tab-pills {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.dash-tab-pill {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  padding: 5px 14px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 2px;
+  transition: all 0.15s;
+}
+.dash-tab-pill:hover { color: var(--text); border-color: var(--border); }
+.dash-tab-pill.active {
+  color: var(--amber);
+  background: rgba(245,166,35,0.08);
+  border-color: rgba(245,166,35,0.25);
+}
+
+/* Body com max-width */
+.dash-live-body2 {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+}
+.dash-live-inner {
+  max-width: 1000px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+/* Section head melhorado */
+.dash-section-head2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.dash-section-head2-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted-hi);
+}
+.dash-section-head2-count {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--muted);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  padding: 1px 7px;
+  border-radius: 2px;
+}
+.dash-section-head2-line {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* Trade card melhorado: compacto, sem spreada */
+.dash-trade-card2 {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: 2px;
+  padding: 12px 16px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.dash-trade-card2:hover { background: var(--surface2); }
+.dash-trade-card2.long  { border-left-color: var(--green); }
+.dash-trade-card2.short { border-left-color: var(--red);   }
+
+/* Cabeçalho do card: sinal/status à esq, pnl/interval à dir */
+.dash-tc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.dash-tc-left  { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dash-tc-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+
+.dash-tc-symbol {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.02em;
+}
+.dash-tc-dir {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+}
+.dash-tc-pnl {
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 600;
+}
+.dash-tc-interval {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--muted);
+}
+
+/* Data row: auto-width columns, não 1fr esticado */
+.dash-tc-data {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.dash-tc-cell {}
+.dash-tc-cell-lbl {
+  font-family: var(--mono);
+  font-size: 7px;
+  text-transform: uppercase;
+  letter-spacing: 0.10em;
+  color: var(--muted);
+  margin-bottom: 3px;
+}
+.dash-tc-cell-val {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted-hi);
+}
+
+.dash-tc-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--muted);
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+/* Empty state melhorado */
+.dash-tc-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  color: var(--muted);
+  text-align: center;
+}
+.dash-tc-empty p {
+  font-family: var(--mono);
+  font-size: 10px;
+}
