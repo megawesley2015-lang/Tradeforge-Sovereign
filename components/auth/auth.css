@@ -1,0 +1,283 @@
+/* ─── TradeForge Auth pages ─── */
+/* Prefixo .tf-auth isolado de Tailwind     */
+
+.tf-auth {
+  --bg:        #080C12;
+  --surface:   #0D1219;
+  --surface2:  #111820;
+  --border:    #1C2535;
+  --amber:     #F5A623;
+  --amber-dim: rgba(245,166,35,0.18);
+  --green:     #22C55E;
+  --red:       #EF4444;
+  --text:      #E2E8F0;
+  --muted:     #4A5A72;
+  --muted-hi:  #7A8FA8;
+  --mono:      var(--font-mono-landing), 'JetBrains Mono', monospace;
+  --grotesk:   var(--font-grotesk), system-ui, sans-serif;
+  --r:         2px;
+
+  min-height: 100vh;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  font-family: var(--grotesk);
+
+  /* dot grid background */
+  background-image: radial-gradient(circle, #1C2535 1px, transparent 1px);
+  background-size: 28px 28px;
+  background-position: center center;
+  position: relative;
+}
+
+/* vignette sobre o grid */
+.tf-auth::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(ellipse 80% 80% at 50% 50%, transparent 40%, var(--bg) 100%);
+  pointer-events: none;
+}
+
+/* ─── CARD ─── */
+.tf-auth-wrap {
+  width: 100%;
+  max-width: 400px;
+  position: relative;
+  z-index: 1;
+}
+
+.tf-auth-logo {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.tf-auth-logo-text {
+  font-family: var(--mono);
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.tf-auth-logo-text span { color: var(--amber); }
+
+.tf-auth-logo-tag {
+  display: block;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: 6px;
+}
+
+.tf-auth-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 32px;
+}
+
+/* ─── HEADER DO CARD ─── */
+.tf-auth-card-head {
+  margin-bottom: 28px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tf-auth-card-title {
+  font-family: var(--grotesk);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.tf-auth-card-sub {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+
+/* ─── FORM ─── */
+.tf-auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tf-auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.tf-auth-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.tf-auth-input-wrap {
+  position: relative;
+}
+
+.tf-auth-input-icon {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+}
+
+.tf-auth-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 11px 12px 11px 36px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.tf-auth-input:focus {
+  border-color: var(--amber);
+}
+
+.tf-auth-input::placeholder {
+  color: var(--muted);
+}
+
+/* ─── MENSAGENS ─── */
+.tf-auth-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: rgba(239,68,68,0.07);
+  border: 1px solid rgba(239,68,68,0.25);
+  border-radius: var(--r);
+  color: #FC8181;
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 10px 12px;
+  line-height: 1.5;
+}
+
+.tf-auth-success {
+  text-align: center;
+  padding: 24px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.tf-auth-success-icon {
+  color: var(--green);
+}
+
+.tf-auth-success-title {
+  font-family: var(--grotesk);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.tf-auth-success-sub {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+/* ─── BONUS NOTE ─── */
+.tf-auth-bonus {
+  background: rgba(245,166,35,0.05);
+  border: 1px solid rgba(245,166,35,0.15);
+  border-radius: var(--r);
+  padding: 10px 12px;
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--muted-hi);
+  line-height: 1.5;
+}
+
+.tf-auth-bonus span {
+  color: var(--amber);
+  font-weight: 600;
+}
+
+/* ─── BOTÃO ─── */
+.tf-auth-btn {
+  width: 100%;
+  background: var(--amber);
+  color: var(--bg);
+  border: none;
+  border-radius: var(--r);
+  padding: 13px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  margin-top: 4px;
+}
+
+.tf-auth-btn:hover:not(:disabled) { opacity: 0.88; }
+.tf-auth-btn:disabled { opacity: 0.5; cursor: default; }
+
+/* ─── LINK RODAPÉ ─── */
+.tf-auth-footer {
+  text-align: center;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.tf-auth-footer a {
+  color: var(--amber);
+  text-decoration: none;
+  font-weight: 500;
+  transition: opacity 0.15s;
+}
+
+.tf-auth-footer a:hover { opacity: 0.8; }
+
+/* ─── STRENGTH BAR (register) ─── */
+.tf-auth-strength {
+  display: flex;
+  gap: 3px;
+  margin-top: 4px;
+}
+
+.tf-auth-strength-bar {
+  flex: 1;
+  height: 2px;
+  background: var(--border);
+  border-radius: 1px;
+  transition: background 0.2s;
+}
+
+.tf-auth-strength-bar.weak   { background: var(--red); }
+.tf-auth-strength-bar.medium { background: var(--amber); }
+.tf-auth-strength-bar.strong { background: var(--green); }
