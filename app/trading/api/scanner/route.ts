@@ -24,7 +24,11 @@
 // =============================================================
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+// supabaseAdmin usa service_role key — bypassa RLS.
+// live_demo_trades tem policy "live_demo_service_write" que bloqueia
+// INSERT/UPDATE com anon key. Sem supabaseAdmin, o scanner lê
+// posições corretamente mas o UPDATE de fechamento falha silenciosamente.
+import { supabaseAdmin as supabase } from '@/lib/supabase';
 import {
   getCandles,
   computeSignal,
