@@ -800,9 +800,19 @@ async function fetchBybitCandles(
 // Limite:   máximo 1500 candles por request
 // ─────────────────────────────────────────────────────────────
 
+// Tokens que foram rebrandeados e têm nome diferente na KuCoin.
+// Binance mantém o símbolo antigo; KuCoin usa o novo.
+const KUCOIN_RENAMES: Record<string, string> = {
+  'MATICUSDT': 'POL-USDT',   // Polygon: MATIC → POL (set/2024)
+  'MATICBTC':  'POL-BTC',
+  'MATICETH':  'POL-ETH',
+};
+
 /** Converte símbolo Binance → KuCoin: BNBUSDT → BNB-USDT */
 function toKucoinSymbol(symbol: string): string {
   const s = symbol.toUpperCase();
+  // Verifica rename explícito primeiro
+  if (KUCOIN_RENAMES[s]) return KUCOIN_RENAMES[s];
   if (s.endsWith('USDT')) return `${s.slice(0, -4)}-USDT`;
   if (s.endsWith('BTC'))  return `${s.slice(0, -3)}-BTC`;
   if (s.endsWith('ETH'))  return `${s.slice(0, -3)}-ETH`;

@@ -8,9 +8,16 @@ import { NextRequest, NextResponse } from 'next/server';
 //   2. Bybit   (api.bybit.com)      — bloqueado em alguns cloud providers
 //   3. KuCoin  (api.kucoin.com)     — política mais permissiva, último recurso
 
+const KUCOIN_RENAMES: Record<string, string> = {
+  'MATICUSDT': 'POL-USDT',
+  'MATICBTC':  'POL-BTC',
+  'MATICETH':  'POL-ETH',
+};
+
 /** Converte símbolo Binance → KuCoin: BNBUSDT → BNB-USDT */
 function toKucoinSymbol(symbol: string): string {
   const s = symbol.toUpperCase();
+  if (KUCOIN_RENAMES[s]) return KUCOIN_RENAMES[s];
   if (s.endsWith('USDT')) return `${s.slice(0, -4)}-USDT`;
   if (s.endsWith('BTC'))  return `${s.slice(0, -3)}-BTC`;
   if (s.endsWith('ETH'))  return `${s.slice(0, -3)}-ETH`;
