@@ -730,10 +730,65 @@ async function fetchYahooCandles(
   return candles.slice(-Math.min(limit, 1000));
 }
 
+// ─────────────────────────────────────────────────────────────
+// BYBIT — fallback quando a Binance estiver bloqueada/indisponível
+// A Binance bloqueia IPs de cloud providers (Vercel, AWS etc.).
+// A Bybit tem política mais permissiva para requisições server-side.
+// ─────────────────────────────────────────────────────────────
+
+/** Mapeamento de intervalos: padrão interno → Bybit */
+const BYBIT_INTERVAL_MAP: Record<string, string> = {
+  '1m': '1', '3m': '3', '5m': '5', '15m': '15', '30m': '30',
+  '1h': '60', '2h': '120', '4h': '240', '6h': '360', '12h': '720',
+  '1d': 'D', '1w': 'W', '1M': 'M',
+};
+
+/**
+ * Busca candles da Bybit (linear = futuros perpétuos USDT).
+ * Utilizado como fallback quando a Binance estiver inacessível.
+ * Retorna no mesmo formato CandleData, ordenado do mais antigo para o mais recente.
+ */
+async function fetchBybitCandles(
+  symbol:   string,
+  interval: string,
+  limit:    number,
+): Promise<CandleData[]> {
+  const bybitInterval = BYBIT_INTERVAL_MAP[interval] ?? '240';
+  const safeLimit = Math.min(limit, 1000);
+
+  // category=linear → futuros perpétuos USDT (preços muito próximos do spot)
+  const url =
+    `https://api.bybit.com/v5/market/kline` +
+    `?category=linear&symbol=${encodeURIComponent(symbol)}` +
+    `&interval=${bybitInterval}&limit=${safeLimit}`;
+
+  const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Bybit API ${res.status} para ${symbol}: ${body.slice(0, 120)}`);
+  }
+
+  const json = await res.json();
+  const list: string[][] = json?.result?.list ?? [];
+  if (list.length === 0) throw new Error(`Bybit: sem dados para ${symbol}`);
+
+  // Bybit retorna do mais recente para o mais antigo — invertemos para manter a ordem cronológica
+  return list
+    .reverse()
+    .map((c) => ({
+      timestamp: Number(c[0]),
+      open:      Number(c[1]),
+      high:      Number(c[2]),
+      low:       Number(c[3]),
+      close:     Number(c[4]),
+      volume:    Number(c[5]),
+    }));
+}
+
 /** Função principal de busca de candles — detecta a fonte automaticamente.
  *  Uso no bot real e nos backtests: sempre usar esta função.
  *  Exemplos:
- *    getCandles('BTCUSDT', '4h', 500)  → Binance
+ *    getCandles('BTCUSDT', '4h', 500)  → tenta Binance, fallback Bybit
  *    getCandles('SPY', '1d', 500)      → Yahoo Finance
  *    getCandles('PETR4.SA', '1d', 250) → Yahoo Finance (B3)
  */
@@ -746,7 +801,15 @@ export async function getCandles(
   if (market === 'crypto') {
     // Normaliza "DOGE" → "DOGEUSDT", "BTC" → "BTCUSDT" etc.
     const cryptoSymbol = normalizeCryptoSymbol(symbol);
-    return fetchBinanceCandles(cryptoSymbol, interval, limit);
+
+    // Tenta Binance primeiro; se falhar (geo-block, rate limit, etc.), usa Bybit
+    try {
+      return await fetchBinanceCandles(cryptoSymbol, interval, limit);
+    } catch (binanceErr) {
+      const msg = binanceErr instanceof Error ? binanceErr.message : String(binanceErr);
+      console.warn(`[getCandles] Binance indisponível para ${cryptoSymbol} — usando Bybit. Motivo: ${msg}`);
+      return await fetchBybitCandles(cryptoSymbol, interval, limit);
+    }
   } else {
     return fetchYahooCandles(symbol, interval, limit);
   }
@@ -887,75 +950,4 @@ export async function exportConfig(
     .from('bot_configs')
     .upsert({
       name:                  saved.name,
-      config:                saved.config,
-      assets:                saved.assets,
-      backtest_net_pct:      saved.backtestNetPct,
-      backtest_win_rate:     saved.backtestWinRate,
-      backtest_max_drawdown: saved.backtestMaxDD,
-      active:                saved.active ?? false,
-      updated_at:            new Date().toISOString(),
-    })
-    .select('id')
-    .single();
-
-  if (error) {
-    console.error('[StrategyEngine] exportConfig falhou:', error.message);
-    return null;
-  }
-  return data?.id ?? null;
-}
-
-// ─────────────────────────────────────────────────────────────
-// CONSTANTES ÚTEIS
-// ─────────────────────────────────────────────────────────────
-
-/** Candles por dia por intervalo (para calcular pausas do circuit breaker) */
-export const CANDLES_PER_DAY: Record<string, number> = {
-  '1m': 1440, '5m': 288, '15m': 96, '30m': 48,
-  '1h': 24,   '4h': 6,   '1d': 1,
-};
-
-/** Símbolos suportados de cripto */
-export const CRYPTO_SYMBOLS = [
-  'BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT',
-  'XRPUSDT', 'ADAUSDT', 'DOGEUSDT', 'AVAXUSDT',
-  'LINKUSDT', 'MATICUSDT', 'DOTUSDT',
-];
-
-/** Símbolos de ações suportados (Yahoo Finance) */
-export const STOCK_SYMBOLS = [
-  'SPY',   // S&P 500 ETF — mais líquido do mundo
-  'QQQ',   // Nasdaq 100 ETF — tech americana
-  'NVDA',  // Nvidia — IA + GPU
-  'AAPL',  // Apple
-  'MSFT',  // Microsoft
-  'PETR4.SA', // Petrobras (B3)
-  'VALE3.SA', // Vale (B3)
-  'ITUB4.SA', // Itaú (B3)
-];
-
-/** Perfis pré-configurados de StrategyConfig por tipo de ativo */
-export const ASSET_PROFILES: Record<string, Partial<StrategyConfig>> = {
-  conservador: {
-    useATRStop: true, atrMultiplier: 1.5, minRiskReward: 2,
-    riskPerTrade: 0.02, adxMinStrength: 20, trailRUnits: 2,
-    scaledExits: true, progressiveRisk: true, circuitBreaker: 15,
-  },
-  moderado: {
-    useATRStop: true, atrMultiplier: 2.0, minRiskReward: 3,
-    riskPerTrade: 0.03, adxMinStrength: 22, trailRUnits: 2.5,
-    scaledExits: true, progressiveRisk: true, circuitBreaker: 20,
-  },
-  agressivo: {
-    useATRStop: true, atrMultiplier: 3.0, minRiskReward: 5,
-    riskPerTrade: 0.05, adxMinStrength: 25, trailRUnits: 3,
-    scaledExits: true, progressiveRisk: true, circuitBreaker: 25,
-  },
-  acoes: {
-    useATRStop: true, atrMultiplier: 1.5, minRiskReward: 2,
-    riskPerTrade: 0.015, adxMinStrength: 20, trailRUnits: 2,
-    scaledExits: false, partialExit: true,
-    progressiveRisk: true, circuitBreaker: 10,
-    slippage: 0.002, // taxas B3/NYSE ligeiramente maiores
-  },
-};
+      config:    
