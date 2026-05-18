@@ -785,10 +785,102 @@ async function fetchBybitCandles(
     }));
 }
 
+// ─────────────────────────────────────────────────────────────
+// KUCOIN — fallback quando Binance E Bybit estiverem bloqueadas
+// KuCoin tem política de IP mais permissiva para cloud providers.
+// Não requer autenticação para dados públicos de mercado.
+//
+// ⚠️ ATENÇÃO — Formato não-padrão do KuCoin:
+//   Candle index:  [0]=startTime  [1]=open  [2]=close  [3]=high  [4]=low  [5]=volume  [6]=amount
+//   Diferença:     Binance/Bybit têm high=index2, low=index3, close=index4
+//                  KuCoin inverte: close=index2, high=index3, low=index4
+//
+// Símbolo:  BTCUSDT → BTC-USDT  (com hífen, sem "USDT" direto)
+// Timestamp: segundos × 1000 para ms (como Binance)
+// Limite:   máximo 1500 candles por request
+// ─────────────────────────────────────────────────────────────
+
+/** Converte símbolo Binance → KuCoin: BNBUSDT → BNB-USDT */
+function toKucoinSymbol(symbol: string): string {
+  const s = symbol.toUpperCase();
+  if (s.endsWith('USDT')) return `${s.slice(0, -4)}-USDT`;
+  if (s.endsWith('BTC'))  return `${s.slice(0, -3)}-BTC`;
+  if (s.endsWith('ETH'))  return `${s.slice(0, -3)}-ETH`;
+  return s; // desconhecido — passa como está
+}
+
+/** Mapeamento de intervalos: padrão interno → KuCoin */
+const KUCOIN_INTERVAL_MAP: Record<string, string> = {
+  '1m': '1min', '3m': '3min', '5m': '5min', '15m': '15min', '30m': '30min',
+  '1h': '1hour', '2h': '2hour', '4h': '4hour', '6h': '6hour', '8h': '8hour',
+  '12h': '12hour', '1d': '1day', '1w': '1week',
+};
+
+/**
+ * Busca candles da KuCoin.
+ * Utilizado como 3º fallback: Binance → Bybit → KuCoin.
+ * Retorna no mesmo formato CandleData, ordenado do mais antigo para o mais recente.
+ */
+async function fetchKucoinCandles(
+  symbol:   string,
+  interval: string,
+  limit:    number,
+): Promise<CandleData[]> {
+  const kucoinSymbol   = toKucoinSymbol(symbol);
+  const kucoinInterval = KUCOIN_INTERVAL_MAP[interval] ?? '4hour';
+  const safeLimit      = Math.min(limit, 1500);
+
+  // KuCoin exige startAt/endAt em segundos para paginar.
+  // Para pegar os N candles mais recentes: endAt = agora, startAt = agora - (N × duração do candle)
+  const intervalSeconds: Record<string, number> = {
+    '1min': 60, '3min': 180, '5min': 300, '15min': 900, '30min': 1800,
+    '1hour': 3600, '2hour': 7200, '4hour': 14400, '6hour': 21600, '8hour': 28800,
+    '12hour': 43200, '1day': 86400, '1week': 604800,
+  };
+  const durSec  = intervalSeconds[kucoinInterval] ?? 14400;
+  const endAt   = Math.floor(Date.now() / 1000);
+  const startAt = endAt - safeLimit * durSec;
+
+  const url =
+    `https://api.kucoin.com/api/v1/market/candles` +
+    `?type=${kucoinInterval}&symbol=${encodeURIComponent(kucoinSymbol)}` +
+    `&startAt=${startAt}&endAt=${endAt}`;
+
+  const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`KuCoin API ${res.status} para ${kucoinSymbol}: ${body.slice(0, 120)}`);
+  }
+
+  const json = await res.json();
+  if (json?.code !== '200000') {
+    throw new Error(`KuCoin erro ${json?.code ?? 'desconhecido'} para ${kucoinSymbol}: ${json?.msg ?? ''}`);
+  }
+
+  const list: string[][] = json?.data ?? [];
+  if (list.length === 0) throw new Error(`KuCoin: sem dados para ${kucoinSymbol}`);
+
+  // KuCoin retorna do mais recente para o mais antigo — invertemos para ordem cronológica.
+  // Formato KuCoin: [startTime, open, close, high, low, volume, amount]
+  // ATENÇÃO: index 2 = close, index 3 = high, index 4 = low  (diferente de Binance/Bybit!)
+  return list
+    .reverse()
+    .slice(-safeLimit)
+    .map((c) => ({
+      timestamp: Number(c[0]) * 1000,  // KuCoin usa segundos → converter para ms
+      open:      Number(c[1]),
+      high:      Number(c[3]),         // ← index 3, não 2!
+      low:       Number(c[4]),         // ← index 4, não 3!
+      close:     Number(c[2]),         // ← index 2, não 4!
+      volume:    Number(c[5]),
+    }));
+}
+
 /** Função principal de busca de candles — detecta a fonte automaticamente.
  *  Uso no bot real e nos backtests: sempre usar esta função.
+ *  Estratégia de fallback (crypto): Binance → Bybit → KuCoin
  *  Exemplos:
- *    getCandles('BTCUSDT', '4h', 500)  → tenta Binance, fallback Bybit
+ *    getCandles('BTCUSDT', '4h', 500)  → tenta Binance, Bybit, KuCoin
  *    getCandles('SPY', '1d', 500)      → Yahoo Finance
  *    getCandles('PETR4.SA', '1d', 250) → Yahoo Finance (B3)
  */
@@ -802,14 +894,24 @@ export async function getCandles(
     // Normaliza "DOGE" → "DOGEUSDT", "BTC" → "BTCUSDT" etc.
     const cryptoSymbol = normalizeCryptoSymbol(symbol);
 
-    // Tenta Binance primeiro; se falhar (geo-block, rate limit, etc.), usa Bybit
+    // 1ª tentativa: Binance
     try {
       return await fetchBinanceCandles(cryptoSymbol, interval, limit);
     } catch (binanceErr) {
       const msg = binanceErr instanceof Error ? binanceErr.message : String(binanceErr);
-      console.warn(`[getCandles] Binance indisponível para ${cryptoSymbol} — usando Bybit. Motivo: ${msg}`);
-      return await fetchBybitCandles(cryptoSymbol, interval, limit);
+      console.warn(`[getCandles] Binance indisponível para ${cryptoSymbol} — tentando Bybit. Motivo: ${msg}`);
     }
+
+    // 2ª tentativa: Bybit
+    try {
+      return await fetchBybitCandles(cryptoSymbol, interval, limit);
+    } catch (bybitErr) {
+      const msg = bybitErr instanceof Error ? bybitErr.message : String(bybitErr);
+      console.warn(`[getCandles] Bybit indisponível para ${cryptoSymbol} — tentando KuCoin. Motivo: ${msg}`);
+    }
+
+    // 3ª tentativa: KuCoin (último recurso)
+    return await fetchKucoinCandles(cryptoSymbol, interval, limit);
   } else {
     return fetchYahooCandles(symbol, interval, limit);
   }
