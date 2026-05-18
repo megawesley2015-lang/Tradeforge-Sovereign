@@ -950,4 +950,75 @@ export async function exportConfig(
     .from('bot_configs')
     .upsert({
       name:                  saved.name,
-      config:    
+      config:                saved.config,
+      assets:                saved.assets,
+      backtest_net_pct:      saved.backtestNetPct,
+      backtest_win_rate:     saved.backtestWinRate,
+      backtest_max_drawdown: saved.backtestMaxDD,
+      active:                saved.active ?? false,
+      updated_at:            new Date().toISOString(),
+    })
+    .select('id')
+    .single();
+
+  if (error) {
+    console.error('[StrategyEngine] exportConfig falhou:', error.message);
+    return null;
+  }
+  return data?.id ?? null;
+}
+
+// ─────────────────────────────────────────────────────────────
+// CONSTANTES ÚTEIS
+// ─────────────────────────────────────────────────────────────
+
+/** Candles por dia por intervalo (para calcular pausas do circuit breaker) */
+export const CANDLES_PER_DAY: Record<string, number> = {
+  '1m': 1440, '5m': 288, '15m': 96, '30m': 48,
+  '1h': 24,   '4h': 6,   '1d': 1,
+};
+
+/** Símbolos suportados de cripto */
+export const CRYPTO_SYMBOLS = [
+  'BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT',
+  'XRPUSDT', 'ADAUSDT', 'DOGEUSDT', 'AVAXUSDT',
+  'LINKUSDT', 'MATICUSDT', 'DOTUSDT',
+];
+
+/** Símbolos de ações suportados (Yahoo Finance) */
+export const STOCK_SYMBOLS = [
+  'SPY',   // S&P 500 ETF — mais líquido do mundo
+  'QQQ',   // Nasdaq 100 ETF — tech americana
+  'NVDA',  // Nvidia — IA + GPU
+  'AAPL',  // Apple
+  'MSFT',  // Microsoft
+  'PETR4.SA', // Petrobras (B3)
+  'VALE3.SA', // Vale (B3)
+  'ITUB4.SA', // Itaú (B3)
+];
+
+/** Perfis pré-configurados de StrategyConfig por tipo de ativo */
+export const ASSET_PROFILES: Record<string, Partial<StrategyConfig>> = {
+  conservador: {
+    useATRStop: true, atrMultiplier: 1.5, minRiskReward: 2,
+    riskPerTrade: 0.02, adxMinStrength: 20, trailRUnits: 2,
+    scaledExits: true, progressiveRisk: true, circuitBreaker: 15,
+  },
+  moderado: {
+    useATRStop: true, atrMultiplier: 2.0, minRiskReward: 3,
+    riskPerTrade: 0.03, adxMinStrength: 22, trailRUnits: 2.5,
+    scaledExits: true, progressiveRisk: true, circuitBreaker: 20,
+  },
+  agressivo: {
+    useATRStop: true, atrMultiplier: 3.0, minRiskReward: 5,
+    riskPerTrade: 0.05, adxMinStrength: 25, trailRUnits: 3,
+    scaledExits: true, progressiveRisk: true, circuitBreaker: 25,
+  },
+  acoes: {
+    useATRStop: true, atrMultiplier: 1.5, minRiskReward: 2,
+    riskPerTrade: 0.015, adxMinStrength: 20, trailRUnits: 2,
+    scaledExits: false, partialExit: true,
+    progressiveRisk: true, circuitBreaker: 10,
+    slippage: 0.002, // taxas B3/NYSE ligeiramente maiores
+  },
+};
