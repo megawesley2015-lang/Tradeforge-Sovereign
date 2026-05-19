@@ -82,9 +82,26 @@ const DEMO_CONFIG: StrategyConfig = {
   minVotesShort:   2,
 };
 
+// ─── Types ────────────────────────────────────────────────────
+
+/** Entrada no log de vida da posição (persistida em notes.log[]). */
+interface PosLogEntry {
+  ts:      string;
+  event:   'opened' | 'stepped' | 'stop_moved' | 'tp1_hit' | 'tp2_hit' | 'closed';
+  detail?: string;
+}
+
 // ─── Helpers ──────────────────────────────────────────────────
 
 function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
+
+/** Lê o array de log do campo notes (tolerante a notas corrompidas). */
+function readLog(notes: unknown): PosLogEntry[] {
+  try {
+    const parsed = JSON.parse(notes as string);
+    return Array.isArray(parsed?.log) ? (parsed.log as PosLogEntry[]) : [];
+  } catch { return []; }
+}
 
 /** Reconstitui OpenPosition a partir do campo notes (estado SSOT serializado). */
 function posFromDb(trade: Record<string, unknown>): OpenPosition {
@@ -163,11 +180,24 @@ export async function GET(req: NextRequest) {
         const pos = posFromDb(trade as Record<string, unknown>);
         const result = stepPosition(pos, lastCandle, DEMO_CONFIG);
 
+        const existingLog = readLog(trade.notes);
+        const now = new Date().toISOString();
+
         if (result.closed) {
           const profit = result.profit;
           const profitPct = ((result.exitPrice - pos.entryPrice) / pos.entryPrice)
             * (pos.signal === 'LONG' ? 1 : -1) * 100;
           const balanceAfter = Number(trade.balance_before ?? DEMO_BALANCE) + profit;
+
+          // Log: evento de fechamento
+          const closeLog: PosLogEntry[] = [
+            ...existingLog,
+            {
+              ts:     now,
+              event:  'closed',
+              detail: `${result.exitReason} | P&L: ${profit >= 0 ? '+' : ''}$${profit.toFixed(2)}`,
+            },
+          ].slice(-20);
 
           await supabase.from('live_demo_trades').update({
             status:        profit >= 0 ? 'CLOSED_WIN' : 'CLOSED_LOSS',
@@ -177,15 +207,49 @@ export async function GET(req: NextRequest) {
             exit_reason:   result.exitReason,
             balance_after: Math.round(balanceAfter * 100) / 100,
             closed_at:     new Date().toISOString(),
-            notes:         JSON.stringify({ ssotState: null, closedBy: 'scanner' }),
+            notes:         JSON.stringify({ ssotState: null, closedBy: 'scanner', log: closeLog }),
           }).eq('id', trade.id);
 
           stepped.push({ symbol: trade.symbol as string, status: 'closed', reason: result.exitReason, pnl: profit });
           console.log(`🔒 Guardian [${trade.symbol}] fechou: ${result.exitReason} | P&L: ${profit >= 0 ? '+' : ''}$${profit.toFixed(2)}`);
         } else {
-          // Persiste estado atualizado (trailing stop, peak, t1Hit etc.)
+          // Detecta eventos significativos para o log
+          const newEntries: PosLogEntry[] = [];
+
+          // 1. Stop movido (trailing stop avançou)
+          if (result.pos.stop !== pos.stop) {
+            const atBE = pos.signal === 'LONG'
+              ? result.pos.stop >= pos.entryPrice
+              : result.pos.stop <= pos.entryPrice;
+            newEntries.push({
+              ts:     now,
+              event:  'stop_moved',
+              detail: `${pos.stop.toFixed(4)} → ${result.pos.stop.toFixed(4)}${atBE ? ' ✓ BE' : ''}`,
+            });
+          }
+
+          // 2. TP1 atingido pela primeira vez
+          if (!pos.t1Hit && result.pos.t1Hit) {
+            newEntries.push({ ts: now, event: 'tp1_hit', detail: 'Saída parcial executada' });
+          }
+
+          // 3. TP2 atingido pela primeira vez
+          if (!pos.t2Hit && result.pos.t2Hit) {
+            newEntries.push({ ts: now, event: 'tp2_hit', detail: 'TP2 atingido' });
+          }
+
+          // 4. Heartbeat de step (sempre — permite calcular "stepada há X horas")
+          newEntries.push({
+            ts:     now,
+            event:  'stepped',
+            detail: `Stop: $${result.pos.stop.toFixed(4)} | Candle: ${result.pos.candlesOpen}`,
+          });
+
+          const updatedLog: PosLogEntry[] = [...existingLog, ...newEntries].slice(-25);
+
+          // Persiste estado atualizado + log
           await supabase.from('live_demo_trades').update({
-            notes: JSON.stringify({ ssotState: result.pos }),
+            notes: JSON.stringify({ ssotState: result.pos, log: updatedLog }),
           }).eq('id', trade.id);
 
           stepped.push({ symbol: trade.symbol as string, status: 'monitoring', stop: result.pos.stop });
@@ -292,6 +356,12 @@ export async function GET(req: NextRequest) {
             DEMO_CONFIG,
           );
 
+          const openLog: PosLogEntry[] = [{
+            ts:     new Date().toISOString(),
+            event:  'opened',
+            detail: `${signal} | Entry $${newPos.entryPrice.toFixed(4)} | Stop $${newPos.stop.toFixed(4)} | ADX ${adx.toFixed(1)}`,
+          }];
+
           await supabase.from('live_demo_trades').insert({
             symbol,
             signal,
@@ -312,7 +382,7 @@ export async function GET(req: NextRequest) {
             dry_run:          true,
             candle_timestamp: lastC.timestamp,
             opened_at:        new Date().toISOString(),
-            notes:            JSON.stringify({ ssotState: newPos }),
+            notes:            JSON.stringify({ ssotState: newPos, log: openLog }),
           });
 
           openSymbols.add(symbol);

@@ -7,6 +7,12 @@ import {
 } from 'lucide-react';
 import '@/components/dashboard/dashboard.css';
 
+interface PosLogEntry {
+  ts:      string;
+  event:   'opened' | 'stepped' | 'stop_moved' | 'tp1_hit' | 'tp2_hit' | 'closed';
+  detail?: string;
+}
+
 interface Trade {
   id: string; symbol: string; signal: 'LONG' | 'SHORT';
   entry_price: number; stop_price: number; tp1_price: number; tp3_price: number;
@@ -16,6 +22,7 @@ interface Trade {
   adx: number; volume_ratio: number; votes_long: number; votes_short: number;
   btc_regime: string; balance_before: number; balance_after?: number;
   opened_at: string; closed_at?: string;
+  notes?: string;
 }
 interface Analytics {
   symbol: string; price: number; trend: 'BULLISH' | 'BEARISH';
@@ -29,12 +36,155 @@ interface Summary {
   totalPnlUsd: number; lastScanAt: string | null;
 }
 
+// Portfólio monitorado (espelha PORTFOLIO do scanner/route.ts)
+const PORTFOLIO = [
+  'BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT',
+  'DOGEUSDT', 'ADAUSDT', 'XRPUSDT',
+  'SPY', 'QQQ', 'NVDA', 'AAPL', 'MSFT',
+  'BBAS3.SA', 'MGLU3.SA', 'ITUB4.SA',
+  'LINKUSDT', 'DOTUSDT', 'MATICUSDT', 'AVAXUSDT',
+];
+
+// Parâmetros para o backtest — idênticos ao DEMO_CONFIG do scanner
+const COMPARE_BT_PARAMS = {
+  initialBalance:    1000,
+  riskPerTrade:      0.02,
+  stopLossPercent:   0.015,
+  atrMultiplier:     2.0,
+  useATRStop:        true,
+  minRiskReward:     2.0,
+  rsiLow:            30,
+  rsiHigh:           70,
+  smaPeriod:         200,
+  trendFilter:       true,
+  useAdxFilter:      true,
+  adxMinStrength:    20,
+  trailingStop:      true,
+  trailRUnits:       2.0,
+  scaledExits:       true,
+  partialExit:       false,
+  fixedRiskAmount:   false,
+  progressiveRisk:   false,
+  circuitBreaker:    0,
+  maxCandlesInTrade: 0,
+  balanceTarget:     0,
+  slippage:          0.001,
+  interval:          '4h',
+  limit:             500,
+};
+
+interface BacktestCompareResult {
+  symbol:       string;
+  totalTrades:  number;
+  wins:         number;
+  losses:       number;
+  winRate:      number;
+  netProfit:    number;
+  netProfitPct: number;
+  maxDrawdown:  number;
+  profitFactor: number;
+  sharpeRatio:  number;
+  expectancy:   number;
+  avgWin:       number;
+  avgLoss:      number;
+}
+
+interface LiveMetrics {
+  totalTrades:  number;
+  wins:         number;
+  losses:       number;
+  winRate:      number;
+  netPnl:       number;
+  profitFactor: number;
+  sharpeRatio:  number;
+  avgWin:       number;
+  avgLoss:      number;
+  expectancy:   number;
+}
+
+function calcLiveMetrics(trades: Trade[], symbol: string): LiveMetrics {
+  const closed = trades.filter(t => t.status !== 'OPEN' && t.symbol === symbol);
+  const wins   = closed.filter(t => t.status === 'CLOSED_WIN');
+  const losses = closed.filter(t => t.status !== 'CLOSED_WIN');
+
+  const grossWin  = wins.reduce((s, t)   => s + (t.profit_usd ?? 0), 0);
+  const grossLoss = losses.reduce((s, t) => s + Math.abs(t.profit_usd ?? 0), 0);
+  const winRate   = closed.length > 0 ? (wins.length / closed.length) * 100 : 0;
+  const avgWin    = wins.length   > 0 ? grossWin  / wins.length   : 0;
+  const avgLoss   = losses.length > 0 ? grossLoss / losses.length : 0;
+  const pf        = grossLoss > 0 ? grossWin / grossLoss : grossWin > 0 ? 999 : 0;
+  const wr        = winRate / 100;
+  const exp       = (wr * avgWin) - ((1 - wr) * avgLoss);
+
+  // Sharpe simplificado (retornos relativos ao saldo inicial demo = $1000)
+  let sharpe = 0;
+  if (closed.length > 2) {
+    const rets = closed.map(t => (t.profit_usd ?? 0) / 1000);
+    const avg  = rets.reduce((a, b) => a + b, 0) / rets.length;
+    const std  = Math.sqrt(rets.reduce((s, r) => s + (r - avg) ** 2, 0) / rets.length);
+    sharpe     = std > 0 ? (avg / std) * Math.sqrt(252) : 0;
+  }
+
+  return {
+    totalTrades:  closed.length,
+    wins:         wins.length,
+    losses:       losses.length,
+    winRate:      Math.round(winRate * 10) / 10,
+    netPnl:       Math.round((grossWin - grossLoss) * 100) / 100,
+    profitFactor: Math.round(pf * 100) / 100,
+    sharpeRatio:  Math.round(sharpe * 100) / 100,
+    avgWin:       Math.round(avgWin  * 100) / 100,
+    avgLoss:      Math.round(avgLoss * 100) / 100,
+    expectancy:   Math.round(exp * 100) / 100,
+  };
+}
+
 const fmt     = (n: number, d = 4) => n?.toFixed(d) ?? '—';
 const fmtUSD  = (n: number)        => `$${Math.abs(n).toFixed(2)}`;
 const fmtPct  = (n: number)        => `${n >= 0 ? '+' : ''}${n?.toFixed(1)}%`;
 const fmtDate = (s: string)        => new Date(s).toLocaleString('pt-BR', {
   day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
 });
+
+// ── Comparação: linha de métrica ──────────────────────────────
+function CompareRow({
+  label, bt, live, fmt: fmtFn, higherIsBetter = true, unit = '',
+}: {
+  label: string;
+  bt:   number | null;
+  live: number | null;
+  fmt?: (n: number) => string;
+  higherIsBetter?: boolean;
+  unit?: string;
+}) {
+  const f = fmtFn ?? ((n: number) => `${n.toFixed(2)}${unit}`);
+  const btVal   = bt   !== null ? f(bt)   : '—';
+  const liveVal = live !== null ? f(live) : '—';
+
+  let btColor   = 'var(--muted-hi)';
+  let liveColor = 'var(--muted-hi)';
+
+  if (bt !== null && live !== null && bt !== live) {
+    const btBetter   = higherIsBetter ? bt   > live : bt   < live;
+    const liveBetter = higherIsBetter ? live > bt   : live < bt;
+    if (btBetter)   btColor   = 'var(--green)';
+    if (liveBetter) liveColor = 'var(--green)';
+    if (!btBetter)  btColor   = 'var(--red)';
+    if (!liveBetter)liveColor = 'var(--red)';
+  }
+
+  return (
+    <tr>
+      <td style={{ color: 'var(--muted)', fontSize: 12, paddingRight: 12 }}>{label}</td>
+      <td style={{ textAlign: 'right', fontFamily: 'var(--mono)', fontSize: 12, color: btColor, fontWeight: 600 }}>
+        {btVal}
+      </td>
+      <td style={{ textAlign: 'right', fontFamily: 'var(--mono)', fontSize: 12, color: liveColor, fontWeight: 600 }}>
+        {liveVal}
+      </td>
+    </tr>
+  );
+}
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; variant: string }> = {
@@ -68,6 +218,97 @@ function SectionHead({ icon, label, count, dotColor }: { icon: React.ReactNode; 
       <span className="dash-section-head2-label">{label}</span>
       <span className="dash-section-head2-count">{count}</span>
       <span className="dash-section-head2-line" />
+    </div>
+  );
+}
+
+// ── Position Life Log ─────────────────────────────────────────
+
+function parseTradeLog(notes?: string): PosLogEntry[] {
+  if (!notes) return [];
+  try {
+    const parsed = JSON.parse(notes);
+    return Array.isArray(parsed?.log) ? (parsed.log as PosLogEntry[]) : [];
+  } catch { return []; }
+}
+
+function timeAgo(ts: string): string {
+  const diffMs  = Date.now() - new Date(ts).getTime();
+  const diffMin = Math.floor(diffMs / 60_000);
+  if (diffMin < 2)   return 'agora';
+  if (diffMin < 60)  return `há ${diffMin}min`;
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 24)    return `há ${diffH}h`;
+  return `há ${Math.floor(diffH / 24)}d`;
+}
+
+const LOG_EVENT_META: Record<PosLogEntry['event'], { label: string; color: string }> = {
+  opened:     { label: 'Aberta',      color: '#60a5fa' }, // azul
+  stepped:    { label: 'Stepada',     color: '#6b7280' }, // cinza
+  stop_moved: { label: 'Stop movido', color: '#f59e0b' }, // âmbar
+  tp1_hit:    { label: 'TP1 ✓',       color: '#34d399' }, // verde claro
+  tp2_hit:    { label: 'TP2 ✓',       color: '#10b981' }, // verde
+  closed:     { label: 'Fechada',     color: '#a78bfa' }, // roxo
+};
+
+function PositionLog({ notes }: { notes?: string }) {
+  const log = parseTradeLog(notes);
+  if (log.length === 0) return null;
+
+  // Último step para o badge "stepada há X"
+  const lastStep = [...log].reverse().find(e => e.event === 'stepped');
+  // Últimas 5 entradas (excluindo "stepped" puro — muito verboso — a não ser que único)
+  const significant = log.filter(e => e.event !== 'stepped');
+  const lastStepped = log.filter(e => e.event === 'stepped').at(-1);
+  // Mostra: todos os eventos significativos + último step (para saber quando rodou)
+  const visible = [...significant, ...(lastStepped ? [lastStepped] : [])]
+    .sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime())
+    .slice(-5)
+    .reverse();
+
+  return (
+    <div style={{
+      borderTop: '1px solid var(--border)',
+      marginTop: 6,
+      paddingTop: 6,
+    }}>
+      {/* Badge resumo: última vez stepada */}
+      {lastStep && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
+          <span style={{
+            width: 5, height: 5, borderRadius: '50%',
+            background: '#6b7280', flexShrink: 0,
+          }} />
+          <span style={{ fontSize: 10, color: 'var(--muted)', fontFamily: 'var(--mono)' }}>
+            Último ciclo: <span style={{ color: 'var(--muted-hi)' }}>{timeAgo(lastStep.ts)}</span>
+          </span>
+        </div>
+      )}
+      {/* Entradas do log */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {visible.map((entry, i) => {
+          const meta = LOG_EVENT_META[entry.event];
+          return (
+            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, lineHeight: 1.3 }}>
+              <span style={{
+                width: 5, height: 5, borderRadius: '50%',
+                background: meta.color, flexShrink: 0, marginTop: 3,
+              }} />
+              <span style={{ fontSize: 10, color: 'var(--muted)', fontFamily: 'var(--mono)', flexShrink: 0 }}>
+                {timeAgo(entry.ts)}
+              </span>
+              <span style={{ fontSize: 10, color: meta.color, flexShrink: 0, fontWeight: 600 }}>
+                {meta.label}
+              </span>
+              {entry.detail && (
+                <span style={{ fontSize: 10, color: 'var(--muted-hi)', wordBreak: 'break-all' }}>
+                  {entry.detail}
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -179,6 +420,9 @@ function TradeCard({ trade, currentPrice }: { trade: Trade; currentPrice?: numbe
         </div>
       </div>
 
+      {/* Log de vida da posição */}
+      <PositionLog notes={trade.notes} />
+
       <div className="dash-tc-footer">
         <span>L{trade.votes_long}/{trade.votes_short}S{trade.exit_reason && ` \xb7 ${trade.exit_reason}`}</span>
         <span>{fmtDate(trade.opened_at)}</span>
@@ -194,9 +438,14 @@ export default function LiveDemoPage() {
   const [loading,    setLoading]    = useState(true);
   const [error,      setError]      = useState('');
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
-  const [tab,        setTab]        = useState<'trades' | 'scanner'>('trades');
+  const [tab,        setTab]        = useState<'trades' | 'scanner' | 'compare'>('trades');
   // Mapa symbol → preço atual ao vivo (atualizado a cada 30s)
   const [livePrices, setLivePrices] = useState<Record<string, number>>({});
+  // Backtest vs Live comparison
+  const [compareSymbol, setCompareSymbol] = useState('BTCUSDT');
+  const [btResult,      setBtResult]      = useState<BacktestCompareResult | null>(null);
+  const [btLoading,     setBtLoading]     = useState(false);
+  const [btError,       setBtError]       = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -245,6 +494,22 @@ export default function LiveDemoPage() {
     const id = setInterval(() => fetchLivePrices(open), 30_000);
     return () => clearInterval(id);
   }, [trades, fetchLivePrices]);
+
+  const runCompare = async () => {
+    setBtLoading(true); setBtError(''); setBtResult(null);
+    try {
+      const res  = await fetch('/trading/api/backtest', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ ...COMPARE_BT_PARAMS, symbol: compareSymbol }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+      setBtResult(data as BacktestCompareResult);
+    } catch (e: unknown) {
+      setBtError(e instanceof Error ? e.message : 'Erro ao rodar backtest');
+    } finally { setBtLoading(false); }
+  };
 
   const openTrades   = trades.filter(t => t.status === 'OPEN');
   const closedTrades = trades.filter(t => t.status !== 'OPEN');
@@ -317,11 +582,15 @@ export default function LiveDemoPage() {
 
       {/* Tab pills */}
       <div className="dash-tab-pills">
-        {(['trades', 'scanner'] as const).map(t => (
-          <button key={t} onClick={() => setTab(t)} className={`dash-tab-pill${tab === t ? ' active' : ''}`}>
-            {t === 'trades' ? `Trades (${trades.length})` : `Scanner (${analytics.length})`}
-          </button>
-        ))}
+        <button onClick={() => setTab('trades')}  className={`dash-tab-pill${tab === 'trades'  ? ' active' : ''}`}>
+          Trades ({trades.length})
+        </button>
+        <button onClick={() => setTab('scanner')} className={`dash-tab-pill${tab === 'scanner' ? ' active' : ''}`}>
+          Scanner ({analytics.length})
+        </button>
+        <button onClick={() => setTab('compare')} className={`dash-tab-pill${tab === 'compare' ? ' active' : ''}`}>
+          Backtest vs Live
+        </button>
       </div>
 
       {/* Body */}
@@ -440,6 +709,139 @@ export default function LiveDemoPage() {
               )}
             </div>
           )}
+
+          {/* Tab: Backtest vs Live */}
+          {tab === 'compare' && (() => {
+            const live = calcLiveMetrics(trades, compareSymbol);
+            const bt   = btResult;
+            const lowSample = live.totalTrades < 5;
+            return (
+              <div>
+                {/* Controles */}
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
+                  <select
+                    value={compareSymbol}
+                    onChange={e => { setCompareSymbol(e.target.value); setBtResult(null); }}
+                    style={{
+                      background: 'var(--card)', border: '1px solid var(--border)',
+                      color: 'var(--text)', borderRadius: 6, padding: '6px 10px',
+                      fontSize: 12, fontFamily: 'var(--mono)',
+                    }}
+                  >
+                    {PORTFOLIO.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                  <button
+                    onClick={runCompare}
+                    disabled={btLoading}
+                    className="dash-icon-btn"
+                    style={{ padding: '6px 14px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
+                  >
+                    {btLoading
+                      ? <><RefreshCw size={12} style={{ animation: 'dash-spin 1s linear infinite' }} /> Rodando...</>
+                      : <><BarChart2 size={12} /> Rodar Backtest</>}
+                  </button>
+                  <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+                    500 candles · 4h · mesma config do scanner
+                  </span>
+                </div>
+
+                {btError && <div className="dash-error-banner">{btError}</div>}
+
+                {lowSample && live.totalTrades > 0 && (
+                  <div style={{
+                    background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)',
+                    borderRadius: 6, padding: '8px 12px', fontSize: 11, color: '#f59e0b', marginBottom: 12,
+                  }}>
+                    ⚠️ Apenas {live.totalTrades} trade(s) ao vivo para {compareSymbol} — amostra pequena, comparação estatística limitada.
+                  </div>
+                )}
+
+                {!bt && !btLoading && (
+                  <div className="dash-tc-empty" style={{ paddingTop: 32 }}>
+                    <BarChart2 size={28} style={{ opacity: 0.2 }} />
+                    <p>Selecione um ativo e clique em &quot;Rodar Backtest&quot;</p>
+                    <p style={{ opacity: 0.5, fontSize: 11 }}>O backtest usa os mesmos parâmetros do scanner ao vivo</p>
+                  </div>
+                )}
+
+                {bt && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {/* Cabeçalho da tabela */}
+                    <div style={{
+                      display: 'grid', gridTemplateColumns: '1fr 1fr 1fr',
+                      background: 'var(--card)', border: '1px solid var(--border)',
+                      borderRadius: '6px 6px 0 0', borderBottom: 'none', overflow: 'hidden',
+                    }}>
+                      <div style={{ padding: '10px 14px', fontSize: 11, color: 'var(--muted)', fontWeight: 700 }}>MÉTRICA</div>
+                      <div style={{ padding: '10px 14px', textAlign: 'right', fontSize: 11, color: '#60a5fa', fontWeight: 700, borderLeft: '1px solid var(--border)' }}>
+                        📊 BACKTEST ({bt.symbol})
+                      </div>
+                      <div style={{ padding: '10px 14px', textAlign: 'right', fontSize: 11, color: '#34d399', fontWeight: 700, borderLeft: '1px solid var(--border)' }}>
+                        🤖 LIVE DEMO
+                      </div>
+                    </div>
+
+                    {/* Corpo da tabela */}
+                    <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '0 0 6px 6px', overflow: 'hidden', marginTop: -12 }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <colgroup>
+                          <col style={{ width: '40%' }} />
+                          <col style={{ width: '30%' }} />
+                          <col style={{ width: '30%' }} />
+                        </colgroup>
+                        <tbody>
+                          {/* Linha sem comparação: trades fechados */}
+                          <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                            <td style={{ padding: '9px 14px', color: 'var(--muted)', fontSize: 12 }}>Trades Fechados</td>
+                            <td style={{ padding: '9px 14px', textAlign: 'right', fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--muted-hi)', borderLeft: '1px solid var(--border)' }}>{bt.totalTrades}</td>
+                            <td style={{ padding: '9px 14px', textAlign: 'right', fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--muted-hi)', borderLeft: '1px solid var(--border)' }}>{live.totalTrades}</td>
+                          </tr>
+                          {[
+                            { label: 'Win Rate',          btV: bt.winRate,      liveV: live.winRate,      f: (n: number) => `${n.toFixed(1)}%`, higher: true  },
+                            { label: 'Avg Win',           btV: bt.avgWin,       liveV: live.avgWin,       f: (n: number) => `$${n.toFixed(2)}`, higher: true  },
+                            { label: 'Avg Loss',          btV: bt.avgLoss,      liveV: live.avgLoss,      f: (n: number) => `$${n.toFixed(2)}`, higher: false },
+                            { label: 'Profit Factor',     btV: bt.profitFactor, liveV: live.profitFactor, f: (n: number) => n.toFixed(2),       higher: true  },
+                            { label: 'Sharpe Ratio',      btV: bt.sharpeRatio,  liveV: live.sharpeRatio,  f: (n: number) => n.toFixed(2),       higher: true  },
+                            { label: 'Expectativa/trade', btV: bt.expectancy,   liveV: live.expectancy,   f: (n: number) => `$${n.toFixed(2)}`, higher: true  },
+                            { label: 'Net P&L',           btV: bt.netProfit,    liveV: live.netPnl,       f: (n: number) => `${n >= 0 ? '+' : ''}$${Math.abs(n).toFixed(2)}`, higher: true },
+                            { label: 'Max Drawdown',      btV: bt.maxDrawdown,  liveV: null,              f: (n: number) => `${n.toFixed(1)}%`, higher: false },
+                          ].map((row, i) => {
+                            const hasLive    = row.liveV !== null && live.totalTrades > 0;
+                            const btBetter   = hasLive ? (row.higher ? row.btV > row.liveV! : row.btV < row.liveV!) : false;
+                            const liveBetter = hasLive ? (row.higher ? row.liveV! > row.btV : row.liveV! < row.btV) : false;
+                            return (
+                              <tr key={i} style={{ borderBottom: i < 7 ? '1px solid var(--border)' : 'none' }}>
+                                <td style={{ padding: '9px 14px', color: 'var(--muted)', fontSize: 12 }}>{row.label}</td>
+                                <td style={{
+                                  padding: '9px 14px', textAlign: 'right', fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 600,
+                                  borderLeft: '1px solid var(--border)',
+                                  color: !hasLive ? 'var(--muted-hi)' : btBetter ? 'var(--green)' : liveBetter ? 'var(--red)' : 'var(--muted-hi)',
+                                }}>
+                                  {row.f(row.btV)}
+                                </td>
+                                <td style={{
+                                  padding: '9px 14px', textAlign: 'right', fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 600,
+                                  borderLeft: '1px solid var(--border)',
+                                  color: row.liveV === null ? 'var(--muted)' : !hasLive ? 'var(--muted-hi)' : liveBetter ? 'var(--green)' : btBetter ? 'var(--red)' : 'var(--muted-hi)',
+                                }}>
+                                  {row.liveV !== null && live.totalTrades > 0 ? row.f(row.liveV) : '—'}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <p style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.6, margin: 0 }}>
+                      Verde = melhor valor. Max Drawdown só disponível no backtest (precisa de curva histórica).
+                      Sharpe ao vivo é aproximação (retornos por trade, não por dia).
+                    </p>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
         </div>
       </div>
