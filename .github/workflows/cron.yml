@@ -1,0 +1,67 @@
+name: TradeForge Scanner Cron
+
+on:
+  schedule:
+    # Roda a cada 15 minutos (suficiente para candles 4h)
+    # GitHub Actions pode ter atraso de 1-5 min — normal e aceitável
+    # Custo: ~2900 min/mês no plano gratuito (limite: 2000 min/mês free)
+    # Para reduzir para ~1450 min/mês, mude para "*/30 * * * *"
+    - cron: '*/15 * * * *'
+
+  # Permite disparar manualmente pelo GitHub UI (Actions → Run workflow)
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Motivo da execução manual (opcional)'
+        required: false
+        default: 'Manual trigger'
+
+jobs:
+  run-scanner:
+    name: Run TradeForge Scanner
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Trigger scanner endpoint
+        run: |
+          echo "🤖 Disparando scanner: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X GET \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            --max-time 120 \
+            "${{ secrets.APP_URL }}/trading/api/scanner")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n -1)
+
+          echo "📊 HTTP Status: $HTTP_CODE"
+          echo "📋 Response: $BODY"
+
+          # Extrai informações do JSON para log legível
+          ELAPSED=$(echo "$BODY" | grep -o '"elapsed":"[^"]*"' | cut -d'"' -f4 || echo "?")
+          BTC_REGIME=$(echo "$BODY" | grep -o '"btcRegime":"[^"]*"' | cut -d'"' -f4 || echo "?")
+          GUARDIAN=$(echo "$BODY" | grep -o '"checked":[0-9]*' | head -1 | cut -d: -f2 || echo "?")
+          ERRORS=$(echo "$BODY" | grep -o '"errors":\[[^]]*\]' | head -1 || echo "")
+
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "⏱  Tempo:         $ELAPSED"
+          echo "🌍 BTC Regime:    $BTC_REGIME"
+          echo "🛡  Posições step: $GUARDIAN"
+          if [ -n "$ERRORS" ] && [ "$ERRORS" != '"errors":[]' ]; then
+            echo "⚠️  Erros:         $ERRORS"
+          else
+            echo "✅ Erros:         nenhum"
+          fi
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+          # Falha o workflow se o endpoint retornar erro HTTP
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "❌ Endpoint retornou HTTP $HTTP_CODE — marcando como falha"
+            exit 1
+          fi
+
+          echo "✅ Scanner concluído com sucesso"
