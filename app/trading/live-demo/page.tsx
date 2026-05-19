@@ -638,7 +638,15 @@ function TradeCard({ trade, currentPrice }: { trade: Trade; currentPrice?: numbe
 
       <div className="dash-tc-footer">
         <span>L{trade.votes_long}/{trade.votes_short}S{trade.exit_reason && ` \xb7 ${trade.exit_reason}`}</span>
-        <span>{fmtDate(trade.opened_at)}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span>{fmtDate(trade.opened_at)}</span>
+          <Link
+            href={`/trading/live-demo/${trade.id}`}
+            style={{ fontSize: 10, color: 'var(--blue)', textDecoration: 'none', opacity: 0.8 }}
+          >
+            detalhes →
+          </Link>
+        </div>
       </div>
     </div>
   );
