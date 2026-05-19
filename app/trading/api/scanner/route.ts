@@ -194,7 +194,7 @@ export async function GET(req: NextRequest) {
             ...existingLog,
             {
               ts:     now,
-              event:  'closed',
+              event:  'closed' as const,
               detail: `${result.exitReason} | P&L: ${profit >= 0 ? '+' : ''}$${profit.toFixed(2)}`,
             },
           ].slice(-20);
@@ -223,25 +223,25 @@ export async function GET(req: NextRequest) {
               : result.pos.stop <= pos.entryPrice;
             newEntries.push({
               ts:     now,
-              event:  'stop_moved',
+              event:  'stop_moved' as const,
               detail: `${pos.stop.toFixed(4)} → ${result.pos.stop.toFixed(4)}${atBE ? ' ✓ BE' : ''}`,
             });
           }
 
           // 2. TP1 atingido pela primeira vez
           if (!pos.t1Hit && result.pos.t1Hit) {
-            newEntries.push({ ts: now, event: 'tp1_hit', detail: 'Saída parcial executada' });
+            newEntries.push({ ts: now, event: 'tp1_hit' as const, detail: 'Saída parcial executada' });
           }
 
           // 3. TP2 atingido pela primeira vez
           if (!pos.t2Hit && result.pos.t2Hit) {
-            newEntries.push({ ts: now, event: 'tp2_hit', detail: 'TP2 atingido' });
+            newEntries.push({ ts: now, event: 'tp2_hit' as const, detail: 'TP2 atingido' });
           }
 
           // 4. Heartbeat de step (sempre — permite calcular "stepada há X horas")
           newEntries.push({
             ts:     now,
-            event:  'stepped',
+            event:  'stepped' as const,
             detail: `Stop: $${result.pos.stop.toFixed(4)} | Candle: ${result.pos.candlesOpen}`,
           });
 
@@ -358,7 +358,7 @@ export async function GET(req: NextRequest) {
 
           const openLog: PosLogEntry[] = [{
             ts:     new Date().toISOString(),
-            event:  'opened',
+            event:  'opened' as const,
             detail: `${signal} | Entry $${newPos.entryPrice.toFixed(4)} | Stop $${newPos.stop.toFixed(4)} | ADX ${adx.toFixed(1)}`,
           }];
 
