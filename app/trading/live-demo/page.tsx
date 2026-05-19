@@ -10,6 +10,7 @@ import '@/components/dashboard/dashboard.css';
 interface Trade {
   id: string; symbol: string; signal: 'LONG' | 'SHORT';
   entry_price: number; stop_price: number; tp1_price: number; tp3_price: number;
+  risk_amount?: number;
   exit_price?: number; profit_usd?: number; profit_pct?: number;
   status: string; exit_reason?: string; interval: string;
   adx: number; volume_ratio: number; votes_long: number; votes_short: number;
@@ -71,10 +72,36 @@ function SectionHead({ icon, label, count, dotColor }: { icon: React.ReactNode; 
   );
 }
 
-function TradeCard({ trade }: { trade: Trade }) {
+// ── P&L não realizado ─────────────────────────────────────────
+// Calcula o ganho/perda atual em dólar e % para posições abertas.
+// Usa a mesma lógica do stepPosition: rUnits × riskAmount.
+// Se risk_amount não estiver disponível, exibe só o % de preço.
+function calcUnrealizedPnl(trade: Trade, currentPrice: number) {
+  const dir      = trade.signal === 'LONG' ? 1 : -1;
+  const entry    = trade.entry_price;
+  const pricePct = ((currentPrice - entry) / entry) * dir * 100;
+
+  // Cálculo em dólar via R-units (mais preciso que % simples)
+  const rd          = Math.abs(entry - trade.stop_price);
+  const riskAmount  = trade.risk_amount ?? 0;
+  const rUnits      = rd > 0 ? ((currentPrice - entry) * dir) / rd : 0;
+  const dollarPnl   = riskAmount > 0 ? rUnits * riskAmount : null;
+
+  return { pricePct, dollarPnl };
+}
+
+function TradeCard({ trade, currentPrice }: { trade: Trade; currentPrice?: number }) {
   const isLong   = trade.signal === 'LONG';
   const isClosed = trade.status !== 'OPEN';
   const pnl      = trade.profit_usd ?? 0;
+
+  // P&L não realizado (só para posições abertas com preço disponível)
+  const unrealized = !isClosed && currentPrice
+    ? calcUnrealizedPnl(trade, currentPrice)
+    : null;
+  const unrealColor = unrealized
+    ? (unrealized.pricePct >= 0 ? 'var(--green)' : 'var(--red)')
+    : undefined;
 
   return (
     <div className={`dash-trade-card2 ${isLong ? 'long' : 'short'}`}>
@@ -91,9 +118,21 @@ function TradeCard({ trade }: { trade: Trade }) {
           {trade.btc_regime === 'RISK_OFF' && <span className="dash-risk-off-tag">RISK_OFF</span>}
         </div>
         <div className="dash-tc-right">
+          {/* P&L realizado (trade fechado) */}
           {isClosed && (
             <span className="dash-tc-pnl" style={{ color: pnl >= 0 ? 'var(--green)' : 'var(--red)' }}>
               {pnl >= 0 ? '+' : ''}{fmtUSD(pnl)}
+            </span>
+          )}
+          {/* P&L não realizado (trade aberto) */}
+          {unrealized && (
+            <span className="dash-tc-pnl" style={{ color: unrealColor }}>
+              {unrealized.dollarPnl !== null
+                ? `${unrealized.dollarPnl >= 0 ? '+' : ''}$${Math.abs(unrealized.dollarPnl).toFixed(2)}`
+                : ''}
+              <span style={{ fontSize: 10, marginLeft: 4, opacity: 0.8 }}>
+                ({unrealized.pricePct >= 0 ? '+' : ''}{unrealized.pricePct.toFixed(2)}%)
+              </span>
             </span>
           )}
           <span className="dash-tc-interval">{trade.interval}</span>
@@ -113,6 +152,15 @@ function TradeCard({ trade }: { trade: Trade }) {
           <div className="dash-tc-cell-lbl">TP3</div>
           <div className="dash-tc-cell-val" style={{ color: 'var(--green)' }}>${fmt(trade.tp3_price, 4)}</div>
         </div>
+        {/* Preço atual para posições abertas */}
+        {!isClosed && currentPrice && (
+          <div className="dash-tc-cell">
+            <div className="dash-tc-cell-lbl">Atual</div>
+            <div className="dash-tc-cell-val" style={{ color: unrealColor }}>
+              ${fmt(currentPrice, 4)}
+            </div>
+          </div>
+        )}
         {isClosed && trade.exit_price && (
           <div className="dash-tc-cell">
             <div className="dash-tc-cell-lbl">Saída</div>
@@ -147,6 +195,8 @@ export default function LiveDemoPage() {
   const [error,      setError]      = useState('');
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [tab,        setTab]        = useState<'trades' | 'scanner'>('trades');
+  // Mapa symbol → preço atual ao vivo (atualizado a cada 30s)
+  const [livePrices, setLivePrices] = useState<Record<string, number>>({});
 
   const load = useCallback(async () => {
     try {
@@ -163,11 +213,38 @@ export default function LiveDemoPage() {
     } finally { setLoading(false); }
   }, []);
 
+  // Busca preços ao vivo para todas as posições abertas
+  const fetchLivePrices = useCallback(async (openTrades: Trade[]) => {
+    if (openTrades.length === 0) return;
+    // Deduplicar símbolos (ex: 2 posições no mesmo ativo → 1 chamada)
+    const symbols = [...new Set(openTrades.map(t => t.symbol))];
+    const results: Record<string, number> = {};
+    await Promise.allSettled(
+      symbols.map(async (symbol) => {
+        try {
+          const res  = await fetch(`/trading/api/price?symbol=${symbol}`);
+          const data = await res.json();
+          if (data.price) results[symbol] = parseFloat(data.price);
+        } catch { /* silenciado — preço não crítico */ }
+      })
+    );
+    setLivePrices(prev => ({ ...prev, ...results }));
+  }, []);
+
   useEffect(() => {
     load();
     const id = setInterval(load, 5 * 60 * 1000);
     return () => clearInterval(id);
   }, [load]);
+
+  // Atualiza preços ao vivo a cada 30 segundos
+  useEffect(() => {
+    const open = trades.filter(t => t.status === 'OPEN');
+    if (open.length === 0) return;
+    fetchLivePrices(open);
+    const id = setInterval(() => fetchLivePrices(open), 30_000);
+    return () => clearInterval(id);
+  }, [trades, fetchLivePrices]);
 
   const openTrades   = trades.filter(t => t.status === 'OPEN');
   const closedTrades = trades.filter(t => t.status !== 'OPEN');
@@ -265,7 +342,13 @@ export default function LiveDemoPage() {
                     dotColor="var(--blue)"
                   />
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {openTrades.map(trade => <TradeCard key={trade.id} trade={trade} />)}
+                    {openTrades.map(trade => (
+                      <TradeCard
+                        key={trade.id}
+                        trade={trade}
+                        currentPrice={livePrices[trade.symbol]}
+                      />
+                    ))}
                   </div>
                 </div>
               )}
