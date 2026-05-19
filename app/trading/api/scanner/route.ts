@@ -210,6 +210,18 @@ export async function GET(req: NextRequest) {
             notes:         JSON.stringify({ ssotState: null, closedBy: 'scanner', log: closeLog }),
           }).eq('id', trade.id);
 
+          // Insere alerta de fechamento
+          const pnlSign = profit >= 0 ? '+' : '';
+          await supabase.from('alerts').insert({
+            type:     'position_closed',
+            symbol:   trade.symbol as string,
+            signal:   pos.signal,
+            message:  `${trade.symbol as string} ${pos.signal} fechou ${pnlSign}$${profit.toFixed(2)} via ${result.exitReason}`,
+            pnl_usd:  Math.round(profit * 100) / 100,
+            trade_id: trade.id as string,
+            status:   'unread',
+          });
+
           stepped.push({ symbol: trade.symbol as string, status: 'closed', reason: result.exitReason, pnl: profit });
           console.log(`🔒 Guardian [${trade.symbol}] fechou: ${result.exitReason} | P&L: ${profit >= 0 ? '+' : ''}$${profit.toFixed(2)}`);
         } else {

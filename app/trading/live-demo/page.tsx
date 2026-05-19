@@ -1,9 +1,9 @@
 "use client";
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import {
   ChevronLeft, RefreshCw, TrendingUp, TrendingDown,
-  BarChart2, Clock, Bot, Wifi, Activity, Zap,
+  BarChart2, Clock, Bot, Wifi, Activity, Zap, Bell,
 } from 'lucide-react';
 import '@/components/dashboard/dashboard.css';
 
@@ -11,6 +11,19 @@ interface PosLogEntry {
   ts:      string;
   event:   'opened' | 'stepped' | 'stop_moved' | 'tp1_hit' | 'tp2_hit' | 'closed';
   detail?: string;
+}
+
+
+interface AlertItem {
+  id:         string;
+  type:       string;
+  symbol:     string;
+  signal?:    string;
+  message:    string;
+  pnl_usd?:   number;
+  trade_id?:  string;
+  status:     'unread' | 'read';
+  created_at: string;
 }
 
 interface Trade {
@@ -988,6 +1001,11 @@ export default function LiveDemoPage() {
   const [tab,        setTab]        = useState<'trades' | 'scanner' | 'compare' | 'equity' | 'stats'>('trades');
   // Mapa symbol → preço atual ao vivo (atualizado a cada 30s)
   const [livePrices, setLivePrices] = useState<Record<string, number>>({});
+  // Alertas de posição fechada
+  const [alerts,       setAlerts]       = useState<AlertItem[]>([]);
+  const [unreadCount,  setUnreadCount]  = useState(0);
+  const [showAlerts,   setShowAlerts]   = useState(false);
+  const bellRef = useRef<HTMLDivElement>(null);
   // Backtest vs Live comparison
   const [compareSymbol, setCompareSymbol] = useState('BTCUSDT');
   const [btResult,      setBtResult]      = useState<BacktestCompareResult | null>(null);
@@ -1041,6 +1059,42 @@ export default function LiveDemoPage() {
     const id = setInterval(() => fetchLivePrices(open), 30_000);
     return () => clearInterval(id);
   }, [trades, fetchLivePrices]);
+
+  const fetchAlerts = useCallback(async () => {
+    try {
+      const res  = await fetch('/trading/api/alerts?limit=20');
+      const data = await res.json();
+      if (!res.ok) return;
+      setAlerts(data.alerts ?? []);
+      setUnreadCount(data.unreadCount ?? 0);
+    } catch { /* silenciado */ }
+  }, []);
+
+  const markAllRead = useCallback(async () => {
+    try {
+      await fetch('/trading/api/alerts', { method: 'PATCH' });
+      setUnreadCount(0);
+      setAlerts(prev => prev.map(a => ({ ...a, status: 'read' as const })));
+    } catch { /* silenciado */ }
+  }, []);
+
+  // Fecha dropdown ao clicar fora
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (bellRef.current && !bellRef.current.contains(e.target as Node)) {
+        setShowAlerts(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  // Busca alertas na carga e a cada 60s
+  useEffect(() => {
+    fetchAlerts();
+    const id = setInterval(fetchAlerts, 60_000);
+    return () => clearInterval(id);
+  }, [fetchAlerts]);
 
   const runCompare = async () => {
     setBtLoading(true); setBtError(''); setBtResult(null);
@@ -1124,6 +1178,108 @@ export default function LiveDemoPage() {
           <button onClick={load} disabled={loading} className="dash-icon-btn" title="Atualizar">
             <RefreshCw size={13} style={loading ? { animation: 'dash-spin 1s linear infinite' } : {}} />
           </button>
+
+          {/* Bell — alertas de posição fechada */}
+          <div ref={bellRef} style={{ position: 'relative' }}>
+            <button
+              className="dash-icon-btn"
+              title="Alertas"
+              onClick={() => {
+                const opening = !showAlerts;
+                setShowAlerts(opening);
+                if (opening && unreadCount > 0) markAllRead();
+              }}
+              style={{ position: 'relative' }}
+            >
+              <Bell size={13} />
+              {unreadCount > 0 && (
+                <span style={{
+                  position: 'absolute', top: -4, right: -4,
+                  minWidth: 14, height: 14, borderRadius: 7,
+                  background: '#ef4444', color: '#fff',
+                  fontSize: 9, fontWeight: 700,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  padding: '0 3px', lineHeight: 1, pointerEvents: 'none',
+                }}>
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
+
+            {showAlerts && (
+              <div style={{
+                position: 'absolute', top: 'calc(100% + 8px)', right: 0,
+                width: 320, maxHeight: 400,
+                background: 'var(--card)', border: '1px solid var(--border)',
+                borderRadius: 10, boxShadow: '0 8px 32px rgba(0,0,0,0.35)',
+                zIndex: 999, overflow: 'hidden', display: 'flex', flexDirection: 'column',
+              }}>
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '10px 14px', borderBottom: '1px solid var(--border)',
+                }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>
+                    Alertas recentes
+                  </span>
+                  {alerts.some(a => a.status === 'unread') && (
+                    <button onClick={markAllRead} style={{
+                      fontSize: 10, color: 'var(--blue)', background: 'none',
+                      border: 'none', cursor: 'pointer', padding: 0,
+                    }}>
+                      Marcar todos lidos
+                    </button>
+                  )}
+                </div>
+                <div style={{ overflowY: 'auto', flex: 1 }}>
+                  {alerts.length === 0 ? (
+                    <div style={{ padding: '24px 16px', textAlign: 'center', fontSize: 12, color: 'var(--muted)' }}>
+                      Nenhum alerta ainda.<br />
+                      <span style={{ fontSize: 10, opacity: 0.6 }}>Aparecem ao fechar posições.</span>
+                    </div>
+                  ) : alerts.map(alert => {
+                    const pnl   = alert.pnl_usd ?? 0;
+                    const isWin = pnl >= 0;
+                    const isNew = alert.status === 'unread';
+                    return (
+                      <div key={alert.id} style={{
+                        padding: '9px 14px', borderBottom: '1px solid var(--border)',
+                        background: isNew ? 'rgba(96,165,250,0.05)' : 'transparent',
+                        display: 'flex', flexDirection: 'column', gap: 3,
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {isNew && (
+                            <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#60a5fa', flexShrink: 0 }} />
+                          )}
+                          <span style={{ fontSize: 11, fontWeight: 600, color: isWin ? 'var(--green)' : 'var(--red)', flex: 1 }}>
+                            {alert.symbol}{alert.signal ? ` ${alert.signal}` : ''}
+                            {' '}
+                            <span style={{ fontFamily: 'var(--mono)' }}>
+                              {pnl >= 0 ? '+' : ''}${Math.abs(pnl).toFixed(2)}
+                            </span>
+                          </span>
+                          <span style={{ fontSize: 9, color: 'var(--muted)', flexShrink: 0 }}>
+                            {timeAgo(alert.created_at)}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: 10, color: 'var(--muted-hi)', paddingLeft: isNew ? 11 : 0 }}>
+                          {alert.message}
+                        </span>
+                        {alert.trade_id && (
+                          <Link
+                            href={`/trading/live-demo/${alert.trade_id}`}
+                            style={{ fontSize: 10, color: 'var(--blue)', paddingLeft: isNew ? 11 : 0, textDecoration: 'none' }}
+                            onClick={() => setShowAlerts(false)}
+                          >
+                            Ver detalhes →
+                          </Link>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
