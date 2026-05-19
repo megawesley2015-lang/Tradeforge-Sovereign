@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
   ChevronLeft, RefreshCw, TrendingUp, TrendingDown,
-  BarChart2, Clock, Bot, Wifi, Activity,
+  BarChart2, Clock, Bot, Wifi, Activity, Zap,
 } from 'lucide-react';
 import '@/components/dashboard/dashboard.css';
 
@@ -145,6 +145,332 @@ const fmtPct  = (n: number)        => `${n >= 0 ? '+' : ''}${n?.toFixed(1)}%`;
 const fmtDate = (s: string)        => new Date(s).toLocaleString('pt-BR', {
   day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
 });
+
+// ── Performance Stats ─────────────────────────────────────────
+
+function calcPerformanceStats(trades: Trade[]) {
+  const closed = [...trades]
+    .filter(t => t.status !== 'OPEN' && t.closed_at != null)
+    .sort((a, b) => new Date(a.closed_at!).getTime() - new Date(b.closed_at!).getTime());
+
+  if (closed.length === 0) return null;
+
+  const wins   = closed.filter(t => t.status === 'CLOSED_WIN');
+  const losses = closed.filter(t => t.status !== 'CLOSED_WIN');
+
+  const grossWin  = wins.reduce((s, t)   => s + (t.profit_usd ?? 0), 0);
+  const grossLoss = losses.reduce((s, t) => s + Math.abs(t.profit_usd ?? 0), 0);
+  const winRate   = closed.length > 0 ? (wins.length / closed.length) * 100 : 0;
+  const avgWin    = wins.length   > 0 ? grossWin  / wins.length   : 0;
+  const avgLoss   = losses.length > 0 ? grossLoss / losses.length : 0;
+  const pf        = grossLoss > 0 ? grossWin / grossLoss : grossWin > 0 ? 999 : 0;
+  const wr        = winRate / 100;
+  const expectancy = (wr * avgWin) - ((1 - wr) * avgLoss);
+
+  // Sharpe (retornos por trade / saldo inicial)
+  const initial = closed[0].balance_before ?? 1000;
+  let sharpe = 0;
+  if (closed.length > 2) {
+    const rets = closed.map(t => (t.profit_usd ?? 0) / initial);
+    const avg  = rets.reduce((a, b) => a + b, 0) / rets.length;
+    const std  = Math.sqrt(rets.reduce((s, r) => s + (r - avg) ** 2, 0) / rets.length);
+    sharpe     = std > 0 ? (avg / std) * Math.sqrt(252) : 0;
+  }
+
+  // Max Drawdown a partir da curva de saldo
+  const curve = [initial, ...closed.map(t => t.balance_after ?? initial)];
+  let peak = curve[0], maxDD = 0;
+  for (const b of curve) {
+    if (b > peak) peak = b;
+    const dd = ((peak - b) / peak) * 100;
+    if (dd > maxDD) maxDD = dd;
+  }
+
+  // Streaks
+  let curStreak = 0, curType = '', maxWinStreak = 0, maxLossStreak = 0;
+  let tmpStreak = 0, tmpType = '';
+  for (const t of closed) {
+    const type = t.status === 'CLOSED_WIN' ? 'win' : 'loss';
+    if (type === tmpType) tmpStreak++;
+    else { tmpStreak = 1; tmpType = type; }
+    if (type === 'win')  maxWinStreak  = Math.max(maxWinStreak,  tmpStreak);
+    if (type === 'loss') maxLossStreak = Math.max(maxLossStreak, tmpStreak);
+  }
+  curType   = tmpType;
+  curStreak = tmpStreak;
+
+  // Duração média dos trades (em horas)
+  const durations = closed
+    .filter(t => t.closed_at)
+    .map(t => (new Date(t.closed_at!).getTime() - new Date(t.opened_at).getTime()) / 3_600_000);
+  const avgDurationH = durations.length > 0
+    ? durations.reduce((a, b) => a + b, 0) / durations.length : 0;
+
+  // LONG vs SHORT
+  const longs  = closed.filter(t => t.signal === 'LONG');
+  const shorts = closed.filter(t => t.signal === 'SHORT');
+  const longWR  = longs.length  > 0 ? longs.filter( t => t.status === 'CLOSED_WIN').length / longs.length  * 100 : 0;
+  const shortWR = shorts.length > 0 ? shorts.filter(t => t.status === 'CLOSED_WIN').length / shorts.length * 100 : 0;
+  const longPnl  = longs.reduce( (s, t) => s + (t.profit_usd ?? 0), 0);
+  const shortPnl = shorts.reduce((s, t) => s + (t.profit_usd ?? 0), 0);
+
+  // Exit reason breakdown
+  const exitBreakdown: Record<string, number> = {};
+  for (const t of closed) {
+    const r = t.exit_reason ?? 'Outros';
+    exitBreakdown[r] = (exitBreakdown[r] ?? 0) + 1;
+  }
+
+  // Best / worst trades
+  const sorted = [...closed].sort((a, b) => (b.profit_usd ?? 0) - (a.profit_usd ?? 0));
+  const best3  = sorted.slice(0, 3);
+  const worst3 = sorted.slice(-3).reverse();
+
+  return {
+    closed, wins, losses, winRate, avgWin, avgLoss, pf, expectancy,
+    sharpe, maxDD, curStreak, curType, maxWinStreak, maxLossStreak,
+    avgDurationH, longs, shorts, longWR, shortWR, longPnl, shortPnl,
+    exitBreakdown, best3, worst3, grossWin, grossLoss, initial,
+  };
+}
+
+function StatCard({ label, value, sub, color }: {
+  label: string; value: string; sub?: string; color?: string;
+}) {
+  return (
+    <div style={{
+      background: 'var(--card)', border: '1px solid var(--border)',
+      borderRadius: 8, padding: '12px 14px',
+      display: 'flex', flexDirection: 'column', gap: 3,
+    }}>
+      <span style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        {label}
+      </span>
+      <span style={{ fontSize: 17, fontWeight: 700, fontFamily: 'var(--mono)', color: color ?? 'var(--text)' }}>
+        {value}
+      </span>
+      {sub && <span style={{ fontSize: 10, color: 'var(--muted)' }}>{sub}</span>}
+    </div>
+  );
+}
+
+function MiniBar({ label, value, total, color }: {
+  label: string; value: number; total: number; color: string;
+}) {
+  const pct = total > 0 ? (value / total) * 100 : 0;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <span style={{ fontSize: 11, color: 'var(--muted)', minWidth: 80, flexShrink: 0 }}>{label}</span>
+      <div style={{ flex: 1, height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
+        <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 2 }} />
+      </div>
+      <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--muted-hi)', minWidth: 32, textAlign: 'right' }}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function PerformanceStats({ trades }: { trades: Trade[] }) {
+  const s = calcPerformanceStats(trades);
+
+  if (!s) {
+    return (
+      <div className="dash-tc-empty" style={{ paddingTop: 32 }}>
+        <Zap size={24} style={{ opacity: 0.2 }} />
+        <p>Nenhum trade fechado ainda.</p>
+        <p style={{ opacity: 0.5, fontSize: 11 }}>As stats aparecem após o primeiro fechamento.</p>
+      </div>
+    );
+  }
+
+  const exitEntries = Object.entries(s.exitBreakdown)
+    .sort((a, b) => b[1] - a[1]);
+  const maxExit = Math.max(...exitEntries.map(e => e[1]));
+
+  const fmtDur = (h: number) =>
+    h < 24 ? `${h.toFixed(0)}h` : `${(h / 24).toFixed(1)}d`;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+      {/* Grid de métricas chave */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 8 }}>
+        <StatCard
+          label="Win Rate" value={`${s.winRate.toFixed(1)}%`}
+          sub={`${s.wins.length}W / ${s.losses.length}L`}
+          color={s.winRate >= 50 ? 'var(--green)' : 'var(--red)'}
+        />
+        <StatCard
+          label="Profit Factor" value={s.pf >= 999 ? '∞' : s.pf.toFixed(2)}
+          sub={`$${s.grossWin.toFixed(0)} / $${s.grossLoss.toFixed(0)}`}
+          color={s.pf >= 1.5 ? 'var(--green)' : s.pf >= 1 ? '#f59e0b' : 'var(--red)'}
+        />
+        <StatCard
+          label="Expectativa" value={`${s.expectancy >= 0 ? '+' : ''}$${s.expectancy.toFixed(2)}`}
+          sub="por trade"
+          color={s.expectancy >= 0 ? 'var(--green)' : 'var(--red)'}
+        />
+        <StatCard
+          label="Sharpe Ratio" value={s.sharpe.toFixed(2)}
+          sub="anualizado aprox."
+          color={s.sharpe >= 1.5 ? 'var(--green)' : s.sharpe >= 0.5 ? '#f59e0b' : s.sharpe > 0 ? 'var(--muted-hi)' : 'var(--red)'}
+        />
+        <StatCard
+          label="Max Drawdown" value={`-${s.maxDD.toFixed(1)}%`}
+          sub="do pico"
+          color={s.maxDD > 25 ? 'var(--red)' : s.maxDD > 15 ? '#f59e0b' : 'var(--muted-hi)'}
+        />
+        <StatCard
+          label="Avg Win" value={`+$${s.avgWin.toFixed(2)}`}
+          sub={`Avg Loss: $${s.avgLoss.toFixed(2)}`}
+          color="var(--green)"
+        />
+        <StatCard
+          label="Ratio W/L" value={(s.avgWin / (s.avgLoss || 1)).toFixed(2)}
+          sub="win/loss ratio"
+          color={(s.avgWin / (s.avgLoss || 1)) >= 1.5 ? 'var(--green)' : 'var(--muted-hi)'}
+        />
+        <StatCard
+          label="Duração Média" value={fmtDur(s.avgDurationH)}
+          sub={`${s.closed.length} trades`}
+          color="var(--muted-hi)"
+        />
+      </div>
+
+      {/* Sequência atual + recordes */}
+      <div style={{
+        background: 'var(--card)', border: '1px solid var(--border)',
+        borderRadius: 8, padding: '12px 16px',
+        display: 'flex', gap: 24, alignItems: 'center', flexWrap: 'wrap',
+      }}>
+        <div>
+          <span style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 4 }}>
+            Sequência Atual
+          </span>
+          <span style={{
+            fontSize: 18, fontWeight: 800, fontFamily: 'var(--mono)',
+            color: s.curType === 'win' ? 'var(--green)' : 'var(--red)',
+          }}>
+            {s.curStreak}× {s.curType === 'win' ? '✓ WIN' : '✗ LOSS'}
+          </span>
+        </div>
+        <div style={{ width: 1, height: 36, background: 'var(--border)' }} />
+        <div>
+          <span style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 4 }}>
+            Recorde Wins
+          </span>
+          <span style={{ fontSize: 16, fontWeight: 700, fontFamily: 'var(--mono)', color: 'var(--green)' }}>
+            {s.maxWinStreak}× consecutivos
+          </span>
+        </div>
+        <div style={{ width: 1, height: 36, background: 'var(--border)' }} />
+        <div>
+          <span style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 4 }}>
+            Recorde Losses
+          </span>
+          <span style={{ fontSize: 16, fontWeight: 700, fontFamily: 'var(--mono)', color: 'var(--red)' }}>
+            {s.maxLossStreak}× consecutivos
+          </span>
+        </div>
+      </div>
+
+      {/* LONG vs SHORT */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        {[
+          { label: 'LONG', trades: s.longs,  wr: s.longWR,  pnl: s.longPnl,  color: 'var(--green)' },
+          { label: 'SHORT', trades: s.shorts, wr: s.shortWR, pnl: s.shortPnl, color: 'var(--red)' },
+        ].map(({ label, trades: ts, wr, pnl, color }) => (
+          <div key={label} style={{
+            background: 'var(--card)', border: '1px solid var(--border)',
+            borderRadius: 8, padding: '12px 14px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+              {label === 'LONG'
+                ? <TrendingUp  size={13} style={{ color }} />
+                : <TrendingDown size={13} style={{ color }} />}
+              <span style={{ fontSize: 12, fontWeight: 700, color }}>{label}</span>
+              <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 'auto' }}>
+                {ts.length} trades
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: 16 }}>
+              <div>
+                <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 2 }}>Win Rate</div>
+                <div style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--mono)', color: wr >= 50 ? 'var(--green)' : 'var(--red)' }}>
+                  {ts.length > 0 ? `${wr.toFixed(1)}%` : '—'}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 2 }}>P&L Total</div>
+                <div style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--mono)', color: pnl >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                  {ts.length > 0 ? `${pnl >= 0 ? '+' : ''}$${Math.abs(pnl).toFixed(2)}` : '—'}
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Motivos de saída */}
+      {exitEntries.length > 0 && (
+        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 16px' }}>
+          <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Motivos de Saída
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+            {exitEntries.map(([reason, count]) => (
+              <MiniBar
+                key={reason}
+                label={reason}
+                value={count}
+                total={maxExit}
+                color={reason.includes('TP') || reason.includes('Trailing') ? 'var(--green)' : reason.includes('Stop') ? 'var(--red)' : '#60a5fa'}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Best / Worst trades */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        {[
+          { title: '🏆 Top 3 Melhores', trades: s.best3,  color: 'var(--green)' },
+          { title: '💀 Top 3 Piores',   trades: s.worst3, color: 'var(--red)'   },
+        ].map(({ title, trades: ts, color }) => (
+          <div key={title} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+            <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', fontSize: 11, fontWeight: 600, color: 'var(--muted)' }}>
+              {title}
+            </div>
+            {ts.map((t, i) => {
+              const pnl = t.profit_usd ?? 0;
+              return (
+                <div key={t.id} style={{
+                  padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  borderBottom: i < 2 ? '1px solid var(--border)' : 'none',
+                }}>
+                  <div>
+                    <span style={{ fontSize: 12, fontWeight: 600 }}>{t.symbol}</span>
+                    <span style={{ fontSize: 10, color: t.signal === 'LONG' ? 'var(--green)' : 'var(--red)', marginLeft: 6 }}>
+                      {t.signal}
+                    </span>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--mono)', color }}>
+                      {pnl >= 0 ? '+' : ''}${Math.abs(pnl).toFixed(2)}
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t.exit_reason ?? '—'}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+
+    </div>
+  );
+}
 
 // ── Equity Curve ─────────────────────────────────────────────
 
@@ -659,7 +985,7 @@ export default function LiveDemoPage() {
   const [loading,    setLoading]    = useState(true);
   const [error,      setError]      = useState('');
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
-  const [tab,        setTab]        = useState<'trades' | 'scanner' | 'compare' | 'equity'>('trades');
+  const [tab,        setTab]        = useState<'trades' | 'scanner' | 'compare' | 'equity' | 'stats'>('trades');
   // Mapa symbol → preço atual ao vivo (atualizado a cada 30s)
   const [livePrices, setLivePrices] = useState<Record<string, number>>({});
   // Backtest vs Live comparison
@@ -815,6 +1141,9 @@ export default function LiveDemoPage() {
         <button onClick={() => setTab('equity')} className={`dash-tab-pill${tab === 'equity' ? ' active' : ''}`}>
           Equity Curve
         </button>
+        <button onClick={() => setTab('stats')} className={`dash-tab-pill${tab === 'stats' ? ' active' : ''}`}>
+          Performance
+        </button>
       </div>
 
       {/* Body */}
@@ -931,6 +1260,18 @@ export default function LiveDemoPage() {
                   </table>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Tab: Performance Stats */}
+          {tab === 'stats' && (
+            <div>
+              <SectionHead
+                icon={<Zap size={11} style={{ color: '#f59e0b' }} />}
+                label="Estatísticas de Performance"
+                count={trades.filter(t => t.status !== 'OPEN').length}
+              />
+              <PerformanceStats trades={trades} />
             </div>
           )}
 
