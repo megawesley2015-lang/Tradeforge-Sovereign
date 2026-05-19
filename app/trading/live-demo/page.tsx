@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
   ChevronLeft, RefreshCw, TrendingUp, TrendingDown,
-  BarChart2, Clock, Bot, Wifi,
+  BarChart2, Clock, Bot, Wifi, Activity,
 } from 'lucide-react';
 import '@/components/dashboard/dashboard.css';
 
@@ -145,6 +145,219 @@ const fmtPct  = (n: number)        => `${n >= 0 ? '+' : ''}${n?.toFixed(1)}%`;
 const fmtDate = (s: string)        => new Date(s).toLocaleString('pt-BR', {
   day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
 });
+
+// ── Equity Curve ─────────────────────────────────────────────
+
+function EquityStatChip({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <span style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
+      <span style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--mono)', color }}>{value}</span>
+    </div>
+  );
+}
+
+function EquityCurve({ trades }: { trades: Trade[] }) {
+  const [hovered, setHovered] = useState<number | null>(null);
+
+  // Trades fechados ordenados cronologicamente com balance_after
+  const closed = [...trades]
+    .filter(t => t.status !== 'OPEN' && t.balance_after != null && t.closed_at != null)
+    .sort((a, b) => new Date(a.closed_at!).getTime() - new Date(b.closed_at!).getTime());
+
+  if (closed.length === 0) {
+    return (
+      <div className="dash-tc-empty" style={{ paddingTop: 32 }}>
+        <Activity size={28} style={{ opacity: 0.2 }} />
+        <p>Nenhum trade fechado ainda.</p>
+        <p style={{ opacity: 0.5, fontSize: 11 }}>A curva aparece após o primeiro trade ser finalizado.</p>
+      </div>
+    );
+  }
+
+  const initialBalance = closed[0].balance_before ?? 1000;
+  const points: number[] = [initialBalance, ...closed.map(t => t.balance_after!)];
+
+  // Dimensões do SVG
+  const W = 560, H = 200;
+  const padL = 58, padR = 16, padT = 14, padB = 32;
+  const plotW = W - padL - padR;
+  const plotH = H - padT - padB;
+
+  const minVal = Math.min(...points) * 0.985;
+  const maxVal = Math.max(...points) * 1.015;
+  const range  = maxVal - minVal || 1;
+
+  const toX = (i: number) => padL + (i / (points.length - 1 || 1)) * plotW;
+  const toY = (v: number) => padT + plotH - ((v - minVal) / range) * plotH;
+
+  const baseY    = toY(initialBalance);
+  const lastVal  = points[points.length - 1];
+  const peakVal  = Math.max(...points);
+  const totalRet = ((lastVal - initialBalance) / initialBalance) * 100;
+  const ddPeak   = ((peakVal - lastVal)        / peakVal)        * 100;
+  const lineColor = lastVal >= initialBalance ? 'var(--green)' : 'var(--red)';
+
+  const linePoints = points.map((v, i) => `${toX(i).toFixed(1)},${toY(v).toFixed(1)}`).join(' ');
+  const areaPath   =
+    `M ${toX(0).toFixed(1)},${baseY.toFixed(1)} ` +
+    points.map((v, i) => `L ${toX(i).toFixed(1)},${toY(v).toFixed(1)}`).join(' ') +
+    ` L ${toX(points.length - 1).toFixed(1)},${baseY.toFixed(1)} Z`;
+
+  // Y-axis labels: 4 gridlines
+  const gridVals = [0, 1, 2, 3].map(k => minVal + (range * k) / 3);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Stats strip */}
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))',
+        gap: 12, background: 'var(--card)', border: '1px solid var(--border)',
+        borderRadius: 8, padding: '12px 16px',
+      }}>
+        <EquityStatChip label="Saldo Atual"      value={`$${lastVal.toFixed(2)}`}   color={lastVal >= initialBalance ? 'var(--green)' : 'var(--red)'} />
+        <EquityStatChip label="Retorno Total"    value={`${totalRet >= 0 ? '+' : ''}${totalRet.toFixed(2)}%`} color={totalRet >= 0 ? 'var(--green)' : 'var(--red)'} />
+        <EquityStatChip label="Pico"             value={`$${peakVal.toFixed(2)}`}   color="var(--muted-hi)" />
+        <EquityStatChip label="Drawdown do Pico" value={`-${ddPeak.toFixed(1)}%`}   color={ddPeak > 20 ? 'var(--red)' : ddPeak > 10 ? '#f59e0b' : 'var(--muted-hi)'} />
+        <EquityStatChip label="Trades Fechados"  value={String(closed.length)}      color="var(--muted-hi)" />
+      </div>
+
+      {/* SVG Chart */}
+      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', position: 'relative' }}>
+        <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', display: 'block' }}>
+          <defs>
+            <linearGradient id="eq-green" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%"   stopColor="#22c55e" stopOpacity="0.22" />
+              <stop offset="100%" stopColor="#22c55e" stopOpacity="0.02" />
+            </linearGradient>
+            <linearGradient id="eq-red" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%"   stopColor="#ef4444" stopOpacity="0.02" />
+              <stop offset="100%" stopColor="#ef4444" stopOpacity="0.20" />
+            </linearGradient>
+          </defs>
+
+          {/* Grid horizontais */}
+          {gridVals.map((v, k) => (
+            <g key={k}>
+              <line x1={padL} y1={toY(v)} x2={W - padR} y2={toY(v)}
+                stroke="var(--border)" strokeWidth="0.5" />
+              <text x={padL - 5} y={toY(v) + 3.5}
+                textAnchor="end" fontSize="8.5" fill="var(--muted)">
+                ${v.toFixed(0)}
+              </text>
+            </g>
+          ))}
+
+          {/* Linha de baseline ($1000) */}
+          <line x1={padL} y1={baseY} x2={W - padR} y2={baseY}
+            stroke="var(--border)" strokeWidth="1" strokeDasharray="4 3" />
+          <text x={padL - 5} y={baseY + 3.5} textAnchor="end" fontSize="8" fill="var(--muted)" opacity="0.6">
+            ${initialBalance}
+          </text>
+
+          {/* Área preenchida */}
+          <path d={areaPath} fill={lastVal >= initialBalance ? 'url(#eq-green)' : 'url(#eq-red)'} />
+
+          {/* Linha da equity */}
+          <polyline points={linePoints} fill="none" stroke={lineColor} strokeWidth="1.8" strokeLinejoin="round" />
+
+          {/* Dots por trade */}
+          {points.map((v, i) => {
+            if (i === 0) return null;
+            const trade = closed[i - 1];
+            const isWin = trade.status === 'CLOSED_WIN';
+            const cx = toX(i), cy = toY(v);
+            const isHov = hovered === i;
+            return (
+              <circle key={i} cx={cx} cy={cy} r={isHov ? 5.5 : 3}
+                fill={isWin ? '#22c55e' : '#ef4444'}
+                stroke="var(--card)" strokeWidth="1.5"
+                style={{ cursor: 'pointer', transition: 'r 0.1s' }}
+                onMouseEnter={() => setHovered(i)}
+                onMouseLeave={() => setHovered(null)}
+              />
+            );
+          })}
+
+          {/* Tooltip no hover */}
+          {hovered !== null && (() => {
+            const trade = closed[hovered - 1];
+            if (!trade) return null;
+            const cx   = toX(hovered);
+            const cy   = toY(points[hovered]);
+            const flip = cx > W * 0.68;
+            const tx   = flip ? cx - 122 : cx + 10;
+            const ty   = Math.max(padT, cy - 40);
+            const isWin = trade.status === 'CLOSED_WIN';
+            const pnl   = trade.profit_usd ?? 0;
+            return (
+              <g>
+                <rect x={tx} y={ty} width={116} height={46} rx={5}
+                  fill="var(--card)" stroke="var(--border)" strokeWidth="0.8" />
+                <text x={tx + 7} y={ty + 14} fontSize="10" fontWeight="700"
+                  fill={isWin ? '#22c55e' : '#ef4444'}>
+                  {trade.symbol} {trade.signal}
+                </text>
+                <text x={tx + 7} y={ty + 26} fontSize="9" fill="var(--muted-hi)">
+                  {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} ({trade.exit_reason ?? '—'})
+                </text>
+                <text x={tx + 7} y={ty + 38} fontSize="9" fill="var(--muted)">
+                  Saldo: ${points[hovered].toFixed(2)}
+                </text>
+              </g>
+            );
+          })()}
+
+          {/* Eixo X: labels */}
+          <text x={padL}       y={H - 6} fontSize="9" fill="var(--muted)">0</text>
+          <text x={W - padR}   y={H - 6} textAnchor="end" fontSize="9" fill="var(--muted)">{closed.length} trades</text>
+          {closed.length >= 4 && (
+            <text x={W / 2} y={H - 6} textAnchor="middle" fontSize="9" fill="var(--muted)">
+              {Math.floor(closed.length / 2)}
+            </text>
+          )}
+        </svg>
+      </div>
+
+      {/* Tabela dos últimos 10 trades fechados */}
+      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+        <div style={{ padding: '8px 14px', borderBottom: '1px solid var(--border)', fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>
+          ÚLTIMOS TRADES FECHADOS
+        </div>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid var(--border)' }}>
+              {['#', 'Ativo', 'Dir.', 'P&L', 'Saída', 'Saldo'].map(h => (
+                <th key={h} style={{ padding: '6px 10px', textAlign: h === '#' ? 'center' : 'right', fontSize: 10, color: 'var(--muted)', fontWeight: 600, whiteSpace: 'nowrap' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {closed.slice(-10).reverse().map((t, i) => {
+              const pnl = t.profit_usd ?? 0;
+              return (
+                <tr key={t.id} style={{ borderBottom: i < 9 ? '1px solid var(--border)' : 'none' }}>
+                  <td style={{ padding: '6px 10px', textAlign: 'center', fontSize: 10, color: 'var(--muted)', fontFamily: 'var(--mono)' }}>
+                    {closed.length - i}
+                  </td>
+                  <td style={{ padding: '6px 10px', textAlign: 'right', fontSize: 11, fontWeight: 600 }}>{t.symbol}</td>
+                  <td style={{ padding: '6px 10px', textAlign: 'right', fontSize: 10, color: t.signal === 'LONG' ? 'var(--green)' : 'var(--red)' }}>{t.signal}</td>
+                  <td style={{ padding: '6px 10px', textAlign: 'right', fontSize: 11, fontFamily: 'var(--mono)', fontWeight: 600, color: pnl >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                    {pnl >= 0 ? '+' : ''}${Math.abs(pnl).toFixed(2)}
+                  </td>
+                  <td style={{ padding: '6px 10px', textAlign: 'right', fontSize: 10, color: 'var(--muted)' }}>{t.exit_reason ?? '—'}</td>
+                  <td style={{ padding: '6px 10px', textAlign: 'right', fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--muted-hi)' }}>
+                    ${(t.balance_after ?? 0).toFixed(2)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 
 // ── Comparação: linha de métrica ──────────────────────────────
 function CompareRow({
@@ -438,7 +651,7 @@ export default function LiveDemoPage() {
   const [loading,    setLoading]    = useState(true);
   const [error,      setError]      = useState('');
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
-  const [tab,        setTab]        = useState<'trades' | 'scanner' | 'compare'>('trades');
+  const [tab,        setTab]        = useState<'trades' | 'scanner' | 'compare' | 'equity'>('trades');
   // Mapa symbol → preço atual ao vivo (atualizado a cada 30s)
   const [livePrices, setLivePrices] = useState<Record<string, number>>({});
   // Backtest vs Live comparison
@@ -591,6 +804,9 @@ export default function LiveDemoPage() {
         <button onClick={() => setTab('compare')} className={`dash-tab-pill${tab === 'compare' ? ' active' : ''}`}>
           Backtest vs Live
         </button>
+        <button onClick={() => setTab('equity')} className={`dash-tab-pill${tab === 'equity' ? ' active' : ''}`}>
+          Equity Curve
+        </button>
       </div>
 
       {/* Body */}
@@ -707,6 +923,18 @@ export default function LiveDemoPage() {
                   </table>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Tab: Equity Curve */}
+          {tab === 'equity' && (
+            <div>
+              <SectionHead
+                icon={<Activity size={11} style={{ color: 'var(--green)' }} />}
+                label="Evolução do Saldo"
+                count={trades.filter(t => t.status !== 'OPEN').length}
+              />
+              <EquityCurve trades={trades} />
             </div>
           )}
 
