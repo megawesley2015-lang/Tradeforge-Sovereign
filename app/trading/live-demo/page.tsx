@@ -1882,13 +1882,3 @@ export default function LiveDemoPage() {
     </div>
   );
 }
-                )}
-              </div>
-            );
-          })()}
-
-        </div>
-      </div>
-    </div>
-  );
-}
