@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import {
   ChevronLeft, RefreshCw, TrendingUp, TrendingDown,
-  BarChart2, Clock, Bot, Wifi, Activity, Zap, Bell,
+  BarChart2, Clock, Bot, Wifi, Activity, Zap, Bell, Heart, AlertTriangle, CheckCircle,
 } from 'lucide-react';
 import '@/components/dashboard/dashboard.css';
 
@@ -24,6 +24,24 @@ interface AlertItem {
   trade_id?:  string;
   status:     'unread' | 'read';
   created_at: string;
+}
+
+
+interface ProviderStatuses { binance: 'up' | 'slow' | 'down'; bybit: 'up' | 'slow' | 'down'; [key: string]: string; }
+interface GhostAlert { type: string; symbol: string; message: string; created_at: string; status: string; }
+
+interface HealthData {
+  systemStatus:          'healthy' | 'degraded' | 'critical';
+  lastScanAt:            string | null;
+  minutesSinceLastScan:  number | null;
+  openPositions:         { id: string; symbol: string; signal: string; opened_at: string; adx: number; entry_price: number }[];
+  closedToday:           number;
+  wins24h:               number;
+  losses24h:             number;
+  pnl24h:                number;
+  ghostAlerts:           GhostAlert[];
+  closedAlerts:          number;
+  providers:             ProviderStatuses;
 }
 
 interface Trade {
@@ -991,6 +1009,195 @@ function TradeCard({ trade, currentPrice }: { trade: Trade; currentPrice?: numbe
   );
 }
 
+
+// ── Health Dashboard ──────────────────────────────────────────
+
+function HealthDashboard({ data, loading }: { data: HealthData | null; loading: boolean }) {
+  if (loading && !data) {
+    return (
+      <div className="dash-tc-empty" style={{ paddingTop: 32 }}>
+        <RefreshCw size={20} style={{ opacity: 0.3, animation: 'dash-spin 1s linear infinite' }} />
+        <p style={{ marginTop: 8 }}>Verificando saúde do sistema...</p>
+      </div>
+    );
+  }
+  if (!data) return null;
+
+  const { systemStatus, minutesSinceLastScan, lastScanAt, providers,
+          openPositions, closedToday, wins24h, losses24h, pnl24h,
+          ghostAlerts, closedAlerts } = data;
+
+  const statusMeta = {
+    healthy:  { label: 'Sistema Saudável',  color: 'var(--green)', Icon: CheckCircle },
+    degraded: { label: 'Degradado',         color: 'var(--amber)', Icon: AlertTriangle },
+    critical: { label: 'Atenção Necessária',color: 'var(--red)',   Icon: AlertTriangle },
+  }[systemStatus];
+
+  const providerColor = (s: string) =>
+    s === 'up' ? 'var(--green)' : s === 'slow' ? 'var(--amber)' : 'var(--red)';
+  const providerLabel = (s: string) =>
+    s === 'up' ? 'OK' : s === 'slow' ? 'Lento' : 'Offline';
+
+  const scanAgoLabel = minutesSinceLastScan === null ? 'Nunca' :
+    minutesSinceLastScan < 60 ? `${minutesSinceLastScan}min atrás` :
+    minutesSinceLastScan < 1440 ? `${Math.floor(minutesSinceLastScan / 60)}h atrás` :
+    `${Math.floor(minutesSinceLastScan / 1440)}d atrás`;
+
+  const scanColor = minutesSinceLastScan === null ? 'var(--red)' :
+    minutesSinceLastScan > 120 ? 'var(--red)' :
+    minutesSinceLastScan > 30  ? 'var(--amber)' : 'var(--green)';
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+      {/* Status geral */}
+      <div style={{
+        background: 'var(--card)', border: `1px solid ${statusMeta.color}`,
+        borderRadius: 10, padding: '16px 20px',
+        display: 'flex', alignItems: 'center', gap: 12,
+      }}>
+        <statusMeta.Icon size={22} style={{ color: statusMeta.color, flexShrink: 0 }} />
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: statusMeta.color }}>
+            {statusMeta.label}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+            Último ciclo: <span style={{ color: scanColor, fontFamily: 'var(--mono)' }}>{scanAgoLabel}</span>
+            {lastScanAt && (
+              <span style={{ marginLeft: 8, opacity: 0.6 }}>
+                ({new Date(lastScanAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })})
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Provedores de dados */}
+      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+        <div style={{ padding: '8px 14px', borderBottom: '1px solid var(--border)', fontSize: 11, color: 'var(--muted)', fontWeight: 600, letterSpacing: '0.05em' }}>
+          PROVEDORES DE DADOS
+        </div>
+        <div style={{ display: 'flex', gap: 0 }}>
+          {Object.entries(providers).map(([name, status], i, arr) => (
+            <div key={name} style={{
+              flex: 1, padding: '12px 14px',
+              borderRight: i < arr.length - 1 ? '1px solid var(--border)' : 'none',
+              display: 'flex', flexDirection: 'column', gap: 4,
+            }}>
+              <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase' }}>
+                {name}
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{
+                  width: 8, height: 8, borderRadius: '50%',
+                  background: providerColor(status),
+                  ...(status === 'up' ? { animation: 'dash-blink 2s infinite' } : {}),
+                }} />
+                <span style={{ fontSize: 13, fontWeight: 700, color: providerColor(status) }}>
+                  {providerLabel(status)}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Métricas 24h */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 8 }}>
+        <StatCard
+          label="Posições Abertas"
+          value={String(openPositions.length)}
+          sub="agora"
+          color={openPositions.length > 0 ? 'var(--blue)' : 'var(--muted-hi)'}
+        />
+        <StatCard
+          label="Fechados Hoje"
+          value={String(closedToday)}
+          sub="desde meia-noite"
+        />
+        <StatCard
+          label="Wins 24h"
+          value={String(wins24h)}
+          color={wins24h > 0 ? 'var(--green)' : undefined}
+        />
+        <StatCard
+          label="Losses 24h"
+          value={String(losses24h)}
+          color={losses24h > 0 ? 'var(--red)' : undefined}
+        />
+        <StatCard
+          label="P&L 24h"
+          value={`${pnl24h >= 0 ? '+' : ''}$${Math.abs(pnl24h).toFixed(2)}`}
+          color={pnl24h >= 0 ? 'var(--green)' : 'var(--red)'}
+        />
+        <StatCard
+          label="Alertas Fecham."
+          value={String(closedAlerts)}
+          sub="nas últimas 24h"
+        />
+      </div>
+
+      {/* Posições abertas */}
+      {openPositions.length > 0 && (
+        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+          <div style={{ padding: '8px 14px', borderBottom: '1px solid var(--border)', fontSize: 11, color: 'var(--muted)', fontWeight: 600, letterSpacing: '0.05em' }}>
+            POSIÇÕES ABERTAS AGORA
+          </div>
+          {openPositions.map((p, i) => {
+            const hoursOpen = (Date.now() - new Date(p.opened_at).getTime()) / 3_600_000;
+            const isLong    = p.signal === 'LONG';
+            return (
+              <div key={p.id} style={{
+                display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px',
+                borderBottom: i < openPositions.length - 1 ? '1px solid var(--border)' : 'none',
+              }}>
+                <span style={{ fontWeight: 700, fontSize: 12, minWidth: 90 }}>{p.symbol}</span>
+                <span style={{ fontSize: 11, color: isLong ? 'var(--green)' : 'var(--red)', fontWeight: 600, minWidth: 44 }}>
+                  {p.signal}
+                </span>
+                <span style={{ fontSize: 10, color: 'var(--muted)', fontFamily: 'var(--mono)', flex: 1 }}>
+                  Entrada ${p.entry_price?.toFixed(4)} · ADX {p.adx?.toFixed(0)}
+                </span>
+                <span style={{ fontSize: 10, color: hoursOpen > 48 ? 'var(--amber)' : 'var(--muted)', fontFamily: 'var(--mono)' }}>
+                  {hoursOpen < 24 ? `${hoursOpen.toFixed(0)}h` : `${(hoursOpen / 24).toFixed(1)}d`}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Alertas fantasma — indicam que o cron parou */}
+      {ghostAlerts.length > 0 && (
+        <div style={{ background: 'var(--card)', border: '1px solid var(--red)', borderRadius: 10, overflow: 'hidden' }}>
+          <div style={{ padding: '8px 14px', borderBottom: '1px solid var(--border)', fontSize: 11, fontWeight: 600, color: 'var(--red)', letterSpacing: '0.05em', display: 'flex', gap: 6, alignItems: 'center' }}>
+            <AlertTriangle size={11} /> POSIÇÕES SEM STEP (CRON PODE TER PARADO)
+          </div>
+          {ghostAlerts.map((a, i) => (
+            <div key={i} style={{
+              padding: '8px 14px', fontSize: 11, color: 'var(--muted-hi)',
+              borderBottom: i < ghostAlerts.length - 1 ? '1px solid var(--border)' : 'none',
+            }}>
+              <span style={{ fontWeight: 600, color: 'var(--red)', marginRight: 8 }}>{a.symbol}</span>
+              {a.message}
+              <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--muted)' }}>
+                {timeAgo(a.created_at)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {ghostAlerts.length === 0 && (
+        <div style={{ textAlign: 'center', fontSize: 11, color: 'var(--muted)', padding: '8px 0' }}>
+          <CheckCircle size={13} style={{ color: 'var(--green)', verticalAlign: 'middle', marginRight: 5 }} />
+          Nenhuma posição fantasma detectada nas últimas 24h
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function LiveDemoPage() {
   const [trades,     setTrades]     = useState<Trade[]>([]);
   const [analytics,  setAnalytics]  = useState<Analytics[]>([]);
@@ -998,7 +1205,9 @@ export default function LiveDemoPage() {
   const [loading,    setLoading]    = useState(true);
   const [error,      setError]      = useState('');
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
-  const [tab,        setTab]        = useState<'trades' | 'scanner' | 'compare' | 'equity' | 'stats'>('trades');
+  const [tab,        setTab]        = useState<'trades' | 'scanner' | 'compare' | 'equity' | 'stats' | 'health'>('trades');
+  const [health,       setHealth]       = useState<HealthData | null>(null);
+  const [healthLoading,setHealthLoading] = useState(false);
   // Mapa symbol → preço atual ao vivo (atualizado a cada 30s)
   const [livePrices, setLivePrices] = useState<Record<string, number>>({});
   // Alertas de posição fechada
@@ -1011,6 +1220,15 @@ export default function LiveDemoPage() {
   const [btResult,      setBtResult]      = useState<BacktestCompareResult | null>(null);
   const [btLoading,     setBtLoading]     = useState(false);
   const [btError,       setBtError]       = useState('');
+
+  const fetchHealth = useCallback(async () => {
+    setHealthLoading(true);
+    try {
+      const res  = await fetch('/trading/api/health');
+      const data = await res.json();
+      if (res.ok) setHealth(data as HealthData);
+    } catch { /* silenciado */ } finally { setHealthLoading(false); }
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -1095,6 +1313,13 @@ export default function LiveDemoPage() {
     const id = setInterval(fetchAlerts, 60_000);
     return () => clearInterval(id);
   }, [fetchAlerts]);
+
+  useEffect(() => {
+    if (tab !== 'health') return;
+    fetchHealth();
+    const id = setInterval(fetchHealth, 2 * 60_000);
+    return () => clearInterval(id);
+  }, [tab, fetchHealth]);
 
   const runCompare = async () => {
     setBtLoading(true); setBtError(''); setBtResult(null);
@@ -1300,6 +1525,9 @@ export default function LiveDemoPage() {
         <button onClick={() => setTab('stats')} className={`dash-tab-pill${tab === 'stats' ? ' active' : ''}`}>
           Performance
         </button>
+        <button onClick={() => setTab('health')} className={`dash-tab-pill${tab === 'health' ? ' active' : ''}`}>
+          <Heart size={10} style={{ marginRight: 4 }} /> Saúde
+        </button>
       </div>
 
       {/* Body */}
@@ -1416,6 +1644,18 @@ export default function LiveDemoPage() {
                   </table>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Tab: Health Dashboard */}
+          {tab === 'health' && (
+            <div>
+              <SectionHead
+                icon={<Heart size={11} style={{ color: 'var(--red)' }} />}
+                label="Saúde do Bot"
+                count={health?.openPositions.length ?? 0}
+              />
+              <HealthDashboard data={health} loading={healthLoading} />
             </div>
           )}
 
