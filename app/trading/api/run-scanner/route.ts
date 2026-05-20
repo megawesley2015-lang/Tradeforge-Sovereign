@@ -2,15 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 
 // POST /trading/api/run-scanner
 // Proxy seguro: le CRON_SECRET no servidor e dispara o scanner.
-// O browser nunca ve o secret -- apenas chama este endpoint.
 //
-// URL base: derivada do header `host` do proprio request --
-// o metodo mais confiavel em Next.js App Router para self-calls.
-// Evita o problema de VERCEL_URL apontar para deployment efemero.
-//
-// Rate-limit: rejeita se ultima execucao foi ha < 2 minutos.
+// IMPORTANTE — resolucao de host no Vercel:
+//   req.headers.get('host') retorna o deployment URL interno
+//   (ex: tradeforge-xxx-hash.vercel.app) — nao o dominio de producao.
+//   req.headers.get('x-forwarded-host') contem o dominio real
+//   que o usuario esta acessando (ex: tradeforge-sovereign.vercel.app).
+//   Usamos x-forwarded-host com fallback para host.
 
-export const maxDuration = 300; // so efetivo no Vercel Pro
+export const maxDuration = 300;
 
 let lastRunAt = 0;
 const MIN_INTERVAL_MS = 2 * 60 * 1000;
@@ -25,11 +25,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Constroi a URL base a partir do host do request atual --
-  // funciona em localhost (http) e em producao Vercel (https).
-  const host  = req.headers.get('host') ?? 'localhost:3000';
-  const proto = host.startsWith('localhost') || host.startsWith('127.') ? 'http' : 'https';
-  const base  = `${proto}://${host}`;
+  // x-forwarded-host = dominio real (producao/preview escolhido pelo user)
+  // host             = deployment interno do Vercel (fallback)
+  const fwdHost = req.headers.get('x-forwarded-host');
+  const rawHost = req.headers.get('host') ?? 'localhost:3000';
+  const host    = fwdHost ?? rawHost;
+  const proto   = host.startsWith('localhost') || host.startsWith('127.') ? 'http' : 'https';
+  const base    = `${proto}://${host}`;
 
   const secret = process.env.CRON_SECRET;
 
@@ -44,18 +46,16 @@ export async function POST(req: NextRequest) {
       cache: 'no-store',
     });
 
-    // Se vier HTML (erro 404/500 do Next), captura antes do .json()
     const contentType = res.headers.get('content-type') ?? '';
     if (!contentType.includes('application/json')) {
       const text = await res.text();
       return NextResponse.json(
-        { error: `Scanner retornou HTTP ${res.status}. URL: ${base}/trading/api/scanner. Preview: ${text.slice(0, 100)}` },
+        { error: `Scanner retornou HTTP ${res.status}. Host resolvido: ${host}. Preview: ${text.slice(0, 120)}` },
         { status: 502 },
       );
     }
 
     const data = await res.json();
-
     if (!res.ok) {
       return NextResponse.json(
         { error: data.error ?? `Scanner retornou HTTP ${res.status}` },

@@ -27,7 +27,7 @@ interface AlertItem {
 }
 
 
-interface ProviderStatuses { binance: 'up' | 'slow' | 'down'; bybit: 'up' | 'slow' | 'down'; [key: string]: string; }
+interface ProviderStatuses { binance: 'up' | 'slow' | 'down' | 'unknown'; bybit: 'up' | 'slow' | 'down' | 'unknown'; [key: string]: string; }
 interface GhostAlert { type: string; symbol: string; message: string; created_at: string; status: string; }
 
 interface HealthData {
@@ -1034,9 +1034,9 @@ function HealthDashboard({ data, loading }: { data: HealthData | null; loading: 
   }[systemStatus];
 
   const providerColor = (s: string) =>
-    s === 'up' ? 'var(--green)' : s === 'slow' ? 'var(--amber)' : 'var(--red)';
+    s === 'up' ? 'var(--green)' : s === 'slow' ? 'var(--amber)' : s === 'unknown' ? 'var(--muted)' : 'var(--red)';
   const providerLabel = (s: string) =>
-    s === 'up' ? 'OK' : s === 'slow' ? 'Lento' : 'Offline';
+    s === 'up' ? 'OK' : s === 'slow' ? 'Lento' : s === 'unknown' ? 'N/D' : 'Offline';
 
   const scanAgoLabel = minutesSinceLastScan === null ? 'Nunca' :
     minutesSinceLastScan < 60 ? `${minutesSinceLastScan}min atrás` :
