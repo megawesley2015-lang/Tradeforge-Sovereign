@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import {
   ChevronLeft, RefreshCw, TrendingUp, TrendingDown,
-  BarChart2, Clock, Bot, Wifi, Activity, Zap, Bell, Heart, AlertTriangle, CheckCircle,
+  BarChart2, Clock, Bot, Wifi, Activity, Zap, Bell, Heart, AlertTriangle, CheckCircle, Play,
 } from 'lucide-react';
 import '@/components/dashboard/dashboard.css';
 
@@ -1208,6 +1208,10 @@ export default function LiveDemoPage() {
   const [tab,        setTab]        = useState<'trades' | 'scanner' | 'compare' | 'equity' | 'stats' | 'health'>('trades');
   const [health,       setHealth]       = useState<HealthData | null>(null);
   const [healthLoading,setHealthLoading] = useState(false);
+  // Botão "Rodar Agora"
+  const [scanRunning,  setScanRunning]   = useState(false);
+  const [scanRunResult,setScanRunResult] = useState<{ stepped: number; opened: number; errors: number; elapsed: string } | null>(null);
+  const [scanRunError, setScanRunError]  = useState('');
   // Mapa symbol → preço atual ao vivo (atualizado a cada 30s)
   const [livePrices, setLivePrices] = useState<Record<string, number>>({});
   // Alertas de posição fechada
@@ -1244,6 +1248,25 @@ export default function LiveDemoPage() {
       setError(e instanceof Error ? e.message : 'Erro ao carregar dados');
     } finally { setLoading(false); }
   }, []);
+
+  const runNow = useCallback(async () => {
+    if (scanRunning) return;
+    setScanRunning(true); setScanRunResult(null); setScanRunError('');
+    try {
+      const res  = await fetch('/trading/api/run-scanner', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) { setScanRunError(data.error ?? `Erro ${res.status}`); return; }
+      const stepped = (data.guardian?.results ?? []).length;
+      const opened  = (data.scanner?.results  ?? []).filter((r: { action?: string }) => r.action === 'opened').length;
+      const errors  = (data.errors            ?? []).length;
+      setScanRunResult({ stepped, opened, errors, elapsed: data.elapsed ?? '?' });
+      // Recarrega dados após o ciclo
+      await load();
+      setScanRunResult(prev => prev);
+    } catch (e: unknown) {
+      setScanRunError(e instanceof Error ? e.message : 'Erro desconhecido');
+    } finally { setScanRunning(false); }
+  }, [scanRunning, load]);
 
   // Busca preços ao vivo para todas as posições abertas
   const fetchLivePrices = useCallback(async (openTrades: Trade[]) => {
@@ -1403,6 +1426,43 @@ export default function LiveDemoPage() {
           <button onClick={load} disabled={loading} className="dash-icon-btn" title="Atualizar">
             <RefreshCw size={13} style={loading ? { animation: 'dash-spin 1s linear infinite' } : {}} />
           </button>
+
+          {/* Botão Rodar Agora */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
+            <button
+              onClick={runNow}
+              disabled={scanRunning}
+              className="dash-icon-btn"
+              title="Disparar scanner agora"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 5,
+                padding: '4px 10px', borderRadius: 6,
+                fontSize: 11, fontWeight: 600,
+                background: scanRunning ? 'transparent' : 'rgba(96,165,250,0.12)',
+                color: scanRunning ? 'var(--muted)' : 'var(--blue)',
+                border: '1px solid rgba(96,165,250,0.25)',
+                cursor: scanRunning ? 'not-allowed' : 'pointer',
+                minWidth: 100,
+                justifyContent: 'center',
+              }}
+            >
+              {scanRunning
+                ? <><RefreshCw size={11} style={{ animation: 'dash-spin 1s linear infinite' }} /> Rodando...</>
+                : <><Play size={11} /> Rodar Agora</>}
+            </button>
+            {/* Resultado inline */}
+            {scanRunResult && !scanRunning && (
+              <span style={{ fontSize: 10, color: 'var(--green)', fontFamily: 'var(--mono)', whiteSpace: 'nowrap' }}>
+                ✓ {scanRunResult.stepped} step · {scanRunResult.opened} aberta{scanRunResult.opened !== 1 ? 's' : ''} · {scanRunResult.elapsed}
+                {scanRunResult.errors > 0 && <span style={{ color: 'var(--amber)', marginLeft: 4 }}>⚠ {scanRunResult.errors} err</span>}
+              </span>
+            )}
+            {scanRunError && !scanRunning && (
+              <span style={{ fontSize: 10, color: 'var(--red)', maxWidth: 180, textAlign: 'right', lineHeight: 1.3 }}>
+                ✗ {scanRunError}
+              </span>
+            )}
+          </div>
 
           {/* Bell — alertas de posição fechada */}
           <div ref={bellRef} style={{ position: 'relative' }}>
