@@ -70,10 +70,10 @@ interface Summary {
 // Portfólio monitorado (espelha PORTFOLIO do scanner/route.ts)
 const PORTFOLIO = [
   'BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT',
-  'DOGEUSDT', 'ADAUSDT', 'XRPUSDT',
-  'SPY', 'QQQ', 'NVDA', 'AAPL', 'MSFT',
-  'BBAS3.SA', 'MGLU3.SA', 'ITUB4.SA',
-  'LINKUSDT', 'DOTUSDT', 'MATICUSDT', 'AVAXUSDT',
+  'LINKUSDT', 'DOTUSDT', 'AVAXUSDT', 'MATICUSDT', 'NEARUSDT', 'ATOMUSDT', 'LTCUSDT',
+  'DOGEUSDT', 'ADAUSDT', 'XRPUSDT', 'SHIBUSDT', 'TRXUSDT',
+  'SPY', 'QQQ', 'NVDA', 'AAPL', 'MSFT', 'TSLA', 'AMZN', 'META',
+  'BBAS3.SA', 'MGLU3.SA', 'ITUB4.SA', 'PETR4.SA', 'VALE3.SA',
 ];
 
 // Parâmetros para o backtest — idênticos ao DEMO_CONFIG do scanner
@@ -1428,41 +1428,42 @@ export default function LiveDemoPage() {
           </button>
 
           {/* Botão Rodar Agora */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
-            <button
-              onClick={runNow}
-              disabled={scanRunning}
-              className="dash-icon-btn"
-              title="Disparar scanner agora"
-              style={{
-                display: 'flex', alignItems: 'center', gap: 5,
-                padding: '4px 10px', borderRadius: 6,
-                fontSize: 11, fontWeight: 600,
-                background: scanRunning ? 'transparent' : 'rgba(96,165,250,0.12)',
-                color: scanRunning ? 'var(--muted)' : 'var(--blue)',
-                border: '1px solid rgba(96,165,250,0.25)',
-                cursor: scanRunning ? 'not-allowed' : 'pointer',
-                minWidth: 100,
-                justifyContent: 'center',
-              }}
-            >
-              {scanRunning
-                ? <><RefreshCw size={11} style={{ animation: 'dash-spin 1s linear infinite' }} /> Rodando...</>
-                : <><Play size={11} /> Rodar Agora</>}
-            </button>
-            {/* Resultado inline */}
-            {scanRunResult && !scanRunning && (
-              <span style={{ fontSize: 10, color: 'var(--green)', fontFamily: 'var(--mono)', whiteSpace: 'nowrap' }}>
-                ✓ {scanRunResult.stepped} step · {scanRunResult.opened} aberta{scanRunResult.opened !== 1 ? 's' : ''} · {scanRunResult.elapsed}
-                {scanRunResult.errors > 0 && <span style={{ color: 'var(--amber)', marginLeft: 4 }}>⚠ {scanRunResult.errors} err</span>}
-              </span>
+          <button
+            onClick={runNow}
+            disabled={scanRunning}
+            title="Disparar scanner agora"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 5,
+              padding: '4px 10px', borderRadius: 6,
+              fontSize: 11, fontWeight: 600,
+              background: scanRunning        ? 'transparent'               :
+                          scanRunResult      ? 'rgba(34,197,94,0.12)'      :
+                          scanRunError       ? 'rgba(239,68,68,0.12)'      :
+                          'rgba(96,165,250,0.12)',
+              color:      scanRunning        ? 'var(--muted)'              :
+                          scanRunResult      ? 'var(--green)'              :
+                          scanRunError       ? 'var(--red)'                :
+                          'var(--blue)',
+              border: `1px solid ${
+                          scanRunning        ? 'rgba(107,114,128,0.25)'    :
+                          scanRunResult      ? 'rgba(34,197,94,0.3)'       :
+                          scanRunError       ? 'rgba(239,68,68,0.3)'       :
+                          'rgba(96,165,250,0.25)'}`,
+              cursor: scanRunning ? 'not-allowed' : 'pointer',
+              minWidth: 106, justifyContent: 'center',
+              transition: 'all 0.2s',
+            }}
+          >
+            {scanRunning ? (
+              <><RefreshCw size={11} style={{ animation: 'dash-spin 1s linear infinite' }} /> Rodando...</>
+            ) : scanRunResult ? (
+              <>✓ {scanRunResult.stepped}s · {scanRunResult.opened}a · {scanRunResult.elapsed}</>
+            ) : scanRunError ? (
+              <span title={scanRunError}>✗ Erro</span>
+            ) : (
+              <><Play size={11} /> Rodar Agora</>
             )}
-            {scanRunError && !scanRunning && (
-              <span style={{ fontSize: 10, color: 'var(--red)', maxWidth: 180, textAlign: 'right', lineHeight: 1.3 }}>
-                ✗ {scanRunError}
-              </span>
-            )}
-          </div>
+          </button>
 
           {/* Bell — alertas de posição fechada */}
           <div ref={bellRef} style={{ position: 'relative' }}>
@@ -1871,6 +1872,16 @@ export default function LiveDemoPage() {
                       Sharpe ao vivo é aproximação (retornos por trade, não por dia).
                     </p>
                   </div>
+                )}
+              </div>
+            );
+          })()}
+
+        </div>
+      </div>
+    </div>
+  );
+}
                 )}
               </div>
             );

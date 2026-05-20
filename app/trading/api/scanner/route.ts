@@ -49,11 +49,17 @@ import {
 // Alterar aqui atualiza AMBOS: scanner e dashboard.
 
 const PORTFOLIO = [
+  // Crypto major
   'BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT',
-  'DOGEUSDT', 'ADAUSDT', 'XRPUSDT',
-  'SPY', 'QQQ', 'NVDA', 'AAPL', 'MSFT',
-  'BBAS3.SA', 'MGLU3.SA', 'ITUB4.SA',
-  'LINKUSDT', 'DOTUSDT', 'MATICUSDT', 'AVAXUSDT',
+  // Crypto alt / DeFi
+  'LINKUSDT', 'DOTUSDT', 'AVAXUSDT', 'MATICUSDT',
+  'NEARUSDT', 'ATOMUSDT', 'LTCUSDT',
+  // Crypto meme
+  'DOGEUSDT', 'ADAUSDT', 'XRPUSDT', 'SHIBUSDT', 'TRXUSDT',
+  // US equities
+  'SPY', 'QQQ', 'NVDA', 'AAPL', 'MSFT', 'TSLA', 'AMZN', 'META',
+  // BR equities (B3)
+  'BBAS3.SA', 'MGLU3.SA', 'ITUB4.SA', 'PETR4.SA', 'VALE3.SA',
 ];
 
 const BOT_INTERVAL  = '4h';
@@ -107,20 +113,30 @@ const CORR_GROUP: Record<string, string> = {
   DOTUSDT:    'crypto-alt',
   AVAXUSDT:   'crypto-alt',
   MATICUSDT:  'crypto-alt',
+  NEARUSDT:   'crypto-alt',
+  ATOMUSDT:   'crypto-alt',
+  LTCUSDT:    'crypto-alt',
   // Crypto meme / especulativo
   DOGEUSDT:   'crypto-meme',
   ADAUSDT:    'crypto-meme',
   XRPUSDT:    'crypto-meme',
-  // US equities (mesmo mercado, horário e sentiment)
+  SHIBUSDT:   'crypto-meme',
+  TRXUSDT:    'crypto-meme',
+  // US equities
   SPY:        'us-equity',
   QQQ:        'us-equity',
   NVDA:       'us-equity',
   AAPL:       'us-equity',
   MSFT:       'us-equity',
-  // BR equities (B3, correlacionado com câmbio BRL/USD)
+  TSLA:       'us-equity',
+  AMZN:       'us-equity',
+  META:       'us-equity',
+  // BR equities (B3)
   'BBAS3.SA': 'br-equity',
   'MGLU3.SA': 'br-equity',
   'ITUB4.SA': 'br-equity',
+  'PETR4.SA': 'br-equity',
+  'VALE3.SA': 'br-equity',
 };
 
 
