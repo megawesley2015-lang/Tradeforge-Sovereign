@@ -1,30 +1,21 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 // POST /trading/api/run-scanner
-// Proxy seguro: lê CRON_SECRET no servidor e dispara o scanner.
-// O browser nunca vê o secret — apenas chama este endpoint.
+// Proxy seguro: le CRON_SECRET no servidor e dispara o scanner.
+// O browser nunca ve o secret -- apenas chama este endpoint.
 //
-// Rate-limit simples: rejeita se última execução foi há < 2 minutos.
-// Isso evita abuso acidental (duplo-clique, refreshes rápidos).
+// URL base: derivada do header `host` do proprio request --
+// o metodo mais confiavel em Next.js App Router para self-calls.
+// Evita o problema de VERCEL_URL apontar para deployment efemero.
 //
-// Risco técnico: em produção Vercel Hobby o timeout de Function é 10s.
-// O scanner demora ~30-60s (19 símbolos × 800ms sleep).
-// Solução: responde imediatamente com 202 Accepted e deixa o scanner
-// rodar em background via waitUntil (não disponível no Hobby).
-// ALTERNATIVA ADOTADA: aumenta o timeout via maxDuration = 300 (Pro)
-// ou usa o GitHub Actions workflow_dispatch como "Rodar Agora" seguro.
-//
-// Para o MVP/Hobby: a chamada pode sofrer timeout no Vercel mas o
-// scanner continua rodando — o resultado aparece no próximo refresh.
+// Rate-limit: rejeita se ultima execucao foi ha < 2 minutos.
 
-export const maxDuration = 300; // segundos — só efetivo no Vercel Pro
+export const maxDuration = 300; // so efetivo no Vercel Pro
 
-// Armazena timestamp da última execução em memória do processo.
-// Suficiente para Vercel (cada instância tem vida curta).
 let lastRunAt = 0;
-const MIN_INTERVAL_MS = 2 * 60 * 1000; // 2 minutos
+const MIN_INTERVAL_MS = 2 * 60 * 1000;
 
-export async function POST() {
+export async function POST(req: NextRequest) {
   const now = Date.now();
   if (now - lastRunAt < MIN_INTERVAL_MS) {
     const waitSec = Math.ceil((MIN_INTERVAL_MS - (now - lastRunAt)) / 1000);
@@ -34,23 +25,34 @@ export async function POST() {
     );
   }
 
+  // Constroi a URL base a partir do host do request atual --
+  // funciona em localhost (http) e em producao Vercel (https).
+  const host  = req.headers.get('host') ?? 'localhost:3000';
+  const proto = host.startsWith('localhost') || host.startsWith('127.') ? 'http' : 'https';
+  const base  = `${proto}://${host}`;
+
   const secret = process.env.CRON_SECRET;
-  const appUrl =
-    process.env.NEXT_PUBLIC_APP_URL ??
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
 
   lastRunAt = now;
 
   try {
-    const res = await fetch(`${appUrl}/trading/api/scanner`, {
-      method:  'GET',
+    const res = await fetch(`${base}/trading/api/scanner`, {
+      method: 'GET',
       headers: {
         ...(secret ? { Authorization: `Bearer ${secret}` } : {}),
-        'Content-Type': 'application/json',
       },
-      // sem cache — queremos execução real
       cache: 'no-store',
     });
+
+    // Se vier HTML (erro 404/500 do Next), captura antes do .json()
+    const contentType = res.headers.get('content-type') ?? '';
+    if (!contentType.includes('application/json')) {
+      const text = await res.text();
+      return NextResponse.json(
+        { error: `Scanner retornou HTTP ${res.status}. URL: ${base}/trading/api/scanner. Preview: ${text.slice(0, 100)}` },
+        { status: 502 },
+      );
+    }
 
     const data = await res.json();
 
