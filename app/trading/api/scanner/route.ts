@@ -92,6 +92,10 @@ const DEMO_CONFIG: StrategyConfig = {
 
 const MAX_CORR_POSITIONS = 2;
 
+// Horas sem step antes de considerar posição "fantasma" (cron parado).
+// 2 ciclos de 4h = 8h. Ajustar se usar intervalo diferente.
+const GHOST_HOURS = 8;
+
 const CORR_GROUP: Record<string, string> = {
   // Crypto large-cap (BTC puxa o grupo inteiro)
   BTCUSDT:    'crypto-major',
@@ -263,6 +267,41 @@ export async function GET(req: NextRequest) {
           stepped.push({ symbol: trade.symbol as string, status: 'closed', reason: result.exitReason, pnl: profit });
           console.log(`🔒 Guardian [${trade.symbol}] fechou: ${result.exitReason} | P&L: ${profit >= 0 ? '+' : ''}$${profit.toFixed(2)}`);
         } else {
+          // ── Alerta de posição fantasma ──────────────────────────
+          // Detecta quando o cron parou de rodar (posição sem step > GHOST_HOURS).
+          // Usa o último evento 'stepped' do log como referência;
+          // se não houver nenhum (posição recém-aberta), usa opened_at.
+          // Dedup: só insere 1 alerta por janela de GHOST_HOURS para evitar spam.
+          {
+            const lastStep   = [...existingLog].reverse().find(e => e.event === 'stepped');
+            const refTs      = lastStep?.ts ?? (trade.opened_at as string);
+            const hoursStale = (Date.now() - new Date(refTs).getTime()) / 3_600_000;
+
+            if (hoursStale >= GHOST_HOURS) {
+              const dedupeWindow = new Date(Date.now() - GHOST_HOURS * 3_600_000).toISOString();
+              const { data: recentGhost } = await supabase
+                .from('alerts')
+                .select('id')
+                .eq('trade_id', trade.id as string)
+                .eq('type', 'ghost_position')
+                .gte('created_at', dedupeWindow)
+                .maybeSingle();
+
+              if (!recentGhost) {
+                await supabase.from('alerts').insert({
+                  type:     'ghost_position',
+                  symbol:   trade.symbol as string,
+                  signal:   pos.signal,
+                  message:  `${trade.symbol as string} ${pos.signal} sem step há ${hoursStale.toFixed(0)}h — verifique o cron`,
+                  pnl_usd:  null,
+                  trade_id: trade.id as string,
+                  status:   'unread',
+                });
+                console.warn(`👻 Fantasma [${trade.symbol}] ${hoursStale.toFixed(0)}h sem step — alerta inserido`);
+              }
+            }
+          }
+
           // Detecta eventos significativos para o log
           const newEntries: PosLogEntry[] = [];
 
