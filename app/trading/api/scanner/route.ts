@@ -82,6 +82,44 @@ const DEMO_CONFIG: StrategyConfig = {
   minVotesShort:   2,
 };
 
+// ─── Grupos de correlação ─────────────────────────────────────
+// Limita abertura simultânea de posições no mesmo grupo.
+// Rationale: BTC, ETH, LINK caem juntos — abrir 3 SHORTs simultâneos
+// triplica a exposição sem diversificação real de risco.
+//
+// Dívida técnica: correlações são estáticas. No futuro, calcular
+// dinamicamente via coeficiente de Pearson em janela rolante 30d.
+
+const MAX_CORR_POSITIONS = 2;
+
+const CORR_GROUP: Record<string, string> = {
+  // Crypto large-cap (BTC puxa o grupo inteiro)
+  BTCUSDT:    'crypto-major',
+  ETHUSDT:    'crypto-major',
+  BNBUSDT:    'crypto-major',
+  SOLUSDT:    'crypto-major',
+  // Crypto alt / DeFi (correlação alta com ETH)
+  LINKUSDT:   'crypto-alt',
+  DOTUSDT:    'crypto-alt',
+  AVAXUSDT:   'crypto-alt',
+  MATICUSDT:  'crypto-alt',
+  // Crypto meme / especulativo
+  DOGEUSDT:   'crypto-meme',
+  ADAUSDT:    'crypto-meme',
+  XRPUSDT:    'crypto-meme',
+  // US equities (mesmo mercado, horário e sentiment)
+  SPY:        'us-equity',
+  QQQ:        'us-equity',
+  NVDA:       'us-equity',
+  AAPL:       'us-equity',
+  MSFT:       'us-equity',
+  // BR equities (B3, correlacionado com câmbio BRL/USD)
+  'BBAS3.SA': 'br-equity',
+  'MGLU3.SA': 'br-equity',
+  'ITUB4.SA': 'br-equity',
+};
+
+
 // ─── Types ────────────────────────────────────────────────────
 
 /** Entrada no log de vida da posição (persistida em notes.log[]). */
@@ -355,6 +393,17 @@ export async function GET(req: NextRequest) {
 
         // ── Abre nova posição se sinal válido e sem posição aberta ─
         if (signal !== 'NEUTRAL' && !openSymbols.has(symbol)) {
+          // ── Verificação de correlação ──────────────────────────
+          const corrGroup = CORR_GROUP[symbol];
+          const corrOpen  = corrGroup
+            ? (openTrades ?? []).filter(t => CORR_GROUP[t.symbol as string] === corrGroup).length
+            : 0;
+
+          if (corrGroup && corrOpen >= MAX_CORR_POSITIONS) {
+            // Bloqueia: grupo já atingiu o limite de posições simultâneas
+            scanEntry.blockedBy = `corr:${corrGroup} (${corrOpen}/${MAX_CORR_POSITIONS})`;
+            console.log(`🚫 Correlação [${symbol}] bloqueado — ${corrGroup} já tem ${corrOpen} posição(ões) abertas`);
+          } else {
           const stopDistPct = DEMO_CONFIG.useATRStop && atrV > 0
             ? (atrV * DEMO_CONFIG.atrMultiplier) / currentPrice
             : DEMO_CONFIG.stopLossPercent;
@@ -400,6 +449,7 @@ export async function GET(req: NextRequest) {
           openSymbols.add(symbol);
           scanEntry.action = 'opened';
           console.log(`🎯 Scanner [${symbol}] novo ${signal} | ADX: ${adx.toFixed(1)} | Entry: $${newPos.entryPrice.toFixed(4)}`);
+          } // end: else correlation guard
         }
 
         scanned.push(scanEntry);
