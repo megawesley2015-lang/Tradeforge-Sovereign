@@ -95,11 +95,13 @@ export function fmtTradeClose(params: {
   balance:    number;
 }): string {
   const { symbol, signal, entryPrice, exitPrice, profit, exitReason, balance } = params;
-  const isWin = profit > 0;
-  const emoji = isWin ? '✅' : '❌';
-  const sign  = profit > 0 ? '+' : '';
-  const pct   = ((exitPrice - entryPrice) / entryPrice * (signal === 'LONG' ? 1 : -1) * 100).toFixed(2);
-  const now   = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  const isWin  = profit > 0;
+  const emoji  = isWin ? '✅' : '❌';
+  const sign   = profit >= 0 ? '+' : '-';
+  // FIX: Math.abs evita duplo-negativo (ex: "--0.83%") quando sign='-' e pct ja seria negativo
+  const pctRaw = (exitPrice - entryPrice) / entryPrice * (signal === 'LONG' ? 1 : -1) * 100;
+  const pct    = Math.abs(pctRaw).toFixed(2);
+  const now    = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
 
   return [
     `${emoji} <b>[PAPER] FECHADO — ${symbol}</b>`,
@@ -163,7 +165,7 @@ export function fmtRegimeAlert(regime: 'RISK_OFF' | 'NORMAL'): string {
   return [
     '✅ <b>[TradeForge] BTC voltou ao regime NORMAL</b>',
     '',
-    'Condições de mercado normalizadas.',
-    'Threshold de LONGs voltou ao padrão (minVotesLong: 2).',
+    'Condicoes de mercado normalizadas.',
+    'Threshold de LONGs voltou ao padrao (minVotesLong: 2).',
   ].join('\n');
 }

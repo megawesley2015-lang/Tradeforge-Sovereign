@@ -38,6 +38,21 @@ import {
   fmtDailyReport,
   fmtRegimeAlert,
 } from './telegram-notifier';
+import { binanceClient } from './binance-futures-client';
+
+// ── Ativos suportados pela Binance Futures (cripto apenas) ───────────────────
+// Ações (SPY, NVDA, PETR4.SA, etc.) só podem ser paper-traded via Yahoo Finance.
+// Este set define quais símbolos serão enviados à Binance em modo LIVE.
+const BINANCE_FUTURES_SYMBOLS = new Set([
+  'BTCUSDT','ETHUSDT','BNBUSDT','SOLUSDT','XRPUSDT','ADAUSDT',
+  'DOGEUSDT','AVAXUSDT','DOTUSDT','LINKUSDT','LTCUSDT','MATICUSDT',
+  'ATOMUSDT','NEARUSDT','UNIUSDT','AAVEUSDT','FTMUSDT','SANDUSDT',
+]);
+
+/** Retorna true se o símbolo pode ser enviado à Binance Futures */
+function isBinanceFuturesSymbol(symbol: string): boolean {
+  return BINANCE_FUTURES_SYMBOLS.has(symbol);
+}
 
 // ─── Tipos ────────────────────────────────────────────────────
 
@@ -86,6 +101,8 @@ export class LiveBot {
   private btcRegime:  BtcRegime = 'NORMAL';
   private dayStats:   DayStats = { wins: 0, losses: 0, pnl: 0, date: '' };
   private lastRegime: BtcRegime = 'NORMAL';
+  /** Rastreia ordens SL/TP colocadas na Binance por símbolo (modo LIVE) */
+  private binanceOrders = new Map<string, { slOrderId?: number; tpOrderId?: number }>();
 
   constructor(private cfg: BotConfig) {
     this.supabase = createClient(cfg.supabaseUrl, cfg.supabaseKey);
@@ -98,8 +115,14 @@ export class LiveBot {
   async runCycle(): Promise<void> {
     this.cycleCount++;
     const now = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-    console.log(`\n[Bot] ═══ Ciclo #${this.cycleCount} — ${now} ═══`);
-    console.log(`[Bot] 💼 Saldo: $${this.balance.toFixed(2)} | Posições abertas: ${this.openPositions.size}`);
+    console.log(`\n[Bot] === Ciclo #${this.cycleCount} — ${now} ===`);
+    console.log(`[Bot] Saldo: $${this.balance.toFixed(2)} | Posicoes abertas: ${this.openPositions.size}`);
+
+    // Na primeira execucao: restaura posicoes abertas salvas no Supabase.
+    // Isso evita abrir posicoes duplicadas apos restart do processo.
+    if (this.cycleCount === 1) {
+      await this.restoreOpenPositions();
+    }
 
     // Atualiza regime BTC antes de processar ativos
     if (this.cfg.useBtcRegime !== false) {
@@ -113,11 +136,76 @@ export class LiveBot {
       this.dayStats = { wins: 0, losses: 0, pnl: 0, date: today };
     }
 
-    // Processa cada ativo sequencialmente para não sobrecarregar as APIs
+    // Processa cada ativo sequencialmente para nao sobrecarregar as APIs
     for (const symbol of this.cfg.assets) {
       await this.processAsset(symbol);
-      // Pequena pausa entre requests para não ser rate-limited
+      // Pequena pausa entre requests para nao ser rate-limited
       await sleep(500);
+    }
+  }
+
+  // ── Restaura posicoes abertas do Supabase apos restart ───────
+
+  private async restoreOpenPositions(): Promise<void> {
+    try {
+      const { data, error } = await this.supabase
+        .from('live_demo_trades')
+        .select('id, symbol, signal, entry_price, stop_price, tp1_price, tp2_price, tp3_price, risk_amount, created_at')
+        .eq('status', 'OPEN');
+
+      if (error) {
+        console.warn('[Bot] Nao foi possivel restaurar posicoes:', error.message);
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        console.log('[Bot] Nenhuma posicao aberta para restaurar — iniciando zerado.');
+        return;
+      }
+
+      let restored = 0;
+      for (const row of data) {
+        // Se ja esta em memoria (improvavel no ciclo 1), nao duplica
+        if (this.openPositions.has(row.symbol)) continue;
+
+        const entryPrice = parseFloat(row.entry_price);
+        const stop       = parseFloat(row.stop_price);
+        const tp1        = parseFloat(row.tp1_price);
+        const tp2        = parseFloat(row.tp2_price);
+        const tp3        = parseFloat(row.tp3_price);
+        const riskAmt    = parseFloat(row.risk_amount);
+        const rd         = Math.abs(entryPrice - stop);
+
+        // Defaults conservadores: assume que nenhum TP foi atingido ainda.
+        // O bot vai re-avaliar o estado da posicao no proximo stepPosition().
+        this.openPositions.set(row.symbol, {
+          signal:        row.signal as 'LONG' | 'SHORT',
+          entryPrice,
+          stop,
+          tp1,
+          tp2,
+          tp3,
+          riskAmount:    riskAmt,
+          rd,
+          peak:          entryPrice,  // conservador
+          t1Hit:         false,
+          t2Hit:         false,
+          partialProfit: 0,
+          candlesOpen:   0,
+          symbol:        row.symbol,
+          openedAt:      new Date(row.created_at ?? Date.now()),
+          dbId:          row.id,
+        });
+
+        restored++;
+        console.log(`[Bot] Restaurado: ${row.symbol} ${row.signal} @ $${entryPrice.toFixed(4)} (db=${row.id})`);
+      }
+
+      if (restored > 0) {
+        console.log(`[Bot] ${restored} posicao(oes) restauradas com sucesso. Bot NAO vai reabrir posicoes ja existentes.`);
+      }
+    } catch (err: any) {
+      console.error('[Bot] Erro ao restaurar posicoes abertas:', err.message);
     }
   }
 
@@ -191,6 +279,21 @@ export class LiveBot {
     this.balance = Math.max(0, this.balance + profit);
     this.openPositions.delete(symbol);
 
+    // Fecha/cancela ordens na Binance se estava em modo LIVE
+    if (!this.cfg.dryRun && isBinanceFuturesSymbol(symbol)) {
+      try {
+        // Cancela ordens SL/TP pendentes (evita ordens fantasmas)
+        await binanceClient.cancelAllOrders(symbol);
+        // Fecha posição residual via ordem MARKET reduceOnly
+        await binanceClient.closePosition(symbol, pos.signal, pos.riskAmount / (pos.rd || 1));
+        console.log(`[Bot] 🔒 ${symbol}: posição fechada na Binance (${result.exitReason})`);
+      } catch (err: any) {
+        // Se a Binance já fechou via SL/TP automaticamente, o erro é esperado — ignora
+        console.log(`[Bot] ℹ️ ${symbol}: Binance já encerrou a posição automaticamente (${err.message})`);
+      }
+      this.binanceOrders.delete(symbol);
+    }
+
     // Stats do dia
     if (result.isWin) this.dayStats.wins++;
     else              this.dayStats.losses++;
@@ -203,24 +306,34 @@ export class LiveBot {
       `Saldo: $${this.balance.toFixed(2)}`
     );
 
-    // Atualiza no Supabase
-    if (pos.dbId) {
-      const profitPct = ((result.exitPrice - pos.entryPrice) / pos.entryPrice)
-        * (pos.signal === 'LONG' ? 1 : -1) * 100;
+    // Atualiza trade no Supabase + persiste saldo para sobreviver restarts
+    const profitPct = ((result.exitPrice - pos.entryPrice) / pos.entryPrice)
+      * (pos.signal === 'LONG' ? 1 : -1) * 100;
 
-      await this.supabase
-        .from('live_demo_trades')
-        .update({
-          status:        result.isWin ? 'CLOSED_WIN' : 'CLOSED_LOSS',
-          exit_price:    result.exitPrice,
-          profit_usd:    Math.round(profit * 100) / 100,
-          profit_pct:    Math.round(profitPct * 100) / 100,
-          exit_reason:   result.exitReason,
-          balance_after: Math.round(this.balance * 100) / 100,
-          closed_at:     new Date().toISOString(),
-        })
-        .eq('id', pos.dbId);
-    }
+    await Promise.all([
+      // 1. Fecha o trade
+      pos.dbId
+        ? this.supabase
+            .from('live_demo_trades')
+            .update({
+              status:        result.isWin ? 'CLOSED_WIN' : 'CLOSED_LOSS',
+              exit_price:    result.exitPrice,
+              profit_usd:    Math.round(profit * 100) / 100,
+              profit_pct:    Math.round(profitPct * 100) / 100,
+              exit_reason:   result.exitReason,
+              balance_after: Math.round(this.balance * 100) / 100,
+              closed_at:     new Date().toISOString(),
+            })
+            .eq('id', pos.dbId)
+        : Promise.resolve(),
+
+      // 2. FIX: persiste o saldo no Supabase para que o bot
+      //    retome o saldo correto após qualquer restart
+      this.supabase
+        .from('profiles')
+        .update({ balance: Math.round(this.balance * 100) / 100 })
+        .not('id', 'is', null),
+    ]);
 
     // Telegram
     if (this.cfg.telegram) {
@@ -279,14 +392,60 @@ export class LiveBot {
       `Votos L${votesLong}/S${votesShort}`
     );
 
+    // ── Execução real na Binance (apenas modo LIVE + cripto) ──────────────────
+    let binanceEntryPrice = pos.entryPrice;
+    let executionMode     = 'PAPER';
+
+    if (!this.cfg.dryRun && isBinanceFuturesSymbol(symbol)) {
+      try {
+        // Valida notional mínimo antes de enviar
+        const check = await binanceClient.validateNotional(symbol, pos.riskAmount / (pos.rd || 1), pos.entryPrice);
+        if (!check.ok) {
+          console.warn(`[Bot] ⚠️ ${symbol}: trade bloqueado — ${check.reason}`);
+          return; // não abre trade inviável
+        }
+
+        const leverageRequired = Math.min(
+          Math.ceil((pos.riskAmount / (pos.rd || 1)) * pos.entryPrice / this.balance),
+          20
+        );
+
+        const result = await binanceClient.openFullPosition({
+          symbol,
+          signal:      signal as 'LONG' | 'SHORT',
+          quantity:    pos.riskAmount / (pos.rd || 1), // qtd de unidades
+          stopLoss:    pos.stop,
+          takeProfit:  pos.tp3,                        // usa TP3 como alvo Binance
+          leverage:    Math.max(1, leverageRequired),
+        });
+
+        binanceEntryPrice = parseFloat(result.entryOrder.avgPrice) || pos.entryPrice;
+        executionMode     = 'LIVE';
+
+        // Guarda IDs das ordens SL/TP para poder cancelar depois
+        this.binanceOrders.set(symbol, {
+          slOrderId: result.slOrder.orderId,
+          tpOrderId: result.tpOrder.orderId,
+        });
+
+        console.log(`[Bot] ✅ ${symbol}: ordens LIVE enviadas — entry=${result.entryOrder.orderId}`);
+      } catch (err: any) {
+        console.error(`[Bot] ERRO ${symbol}: falha ao enviar ordem Binance — ${(err as Error).message}. Continuando em paper.`);
+        executionMode = 'PAPER_FALLBACK';
+      }
+    } else if (!this.cfg.dryRun && !isBinanceFuturesSymbol(symbol)) {
+      console.log(`[Bot] ℹ️ ${symbol}: ativo não negociado na Binance Futures — paper trading.`);
+      executionMode = 'PAPER_STOCK';
+    }
+
     // ── Salva no Supabase ──────────────────────────────────────
     const { data, error } = await this.supabase
       .from('live_demo_trades')
       .insert({
         symbol,
         signal,
-        entry_price:      Math.round(pos.entryPrice     * 1e8) / 1e8,
-        stop_price:       Math.round(pos.stop           * 1e8) / 1e8,
+        entry_price:      Math.round(binanceEntryPrice  * 1e8) / 1e8,
+        stop_price:       Math.round(pos.stop            * 1e8) / 1e8,
         tp1_price:        Math.round(pos.tp1            * 1e8) / 1e8,
         tp2_price:        Math.round(pos.tp2            * 1e8) / 1e8,
         tp3_price:        Math.round(pos.tp3            * 1e8) / 1e8,
@@ -300,6 +459,7 @@ export class LiveBot {
         votes_short:      votesShort,
         btc_regime:       this.btcRegime,
         dry_run:          this.cfg.dryRun,
+        execution_mode:   executionMode,
         candle_timestamp: lastC.timestamp,
       })
       .select('id')
@@ -308,15 +468,16 @@ export class LiveBot {
     const dbId = (!error && data) ? (data as { id: string }).id : undefined;
     if (error) console.error('[Bot] DB insert error:', error.message);
 
-    // Guarda em memória
+    // Guarda em memoria
     this.openPositions.set(symbol, {
       ...pos,
+      entryPrice: binanceEntryPrice,
       symbol,
       openedAt: new Date(),
       dbId,
     });
 
-    // ── Telegram ───────────────────────────────────────────────
+    // Telegram
     if (this.cfg.telegram) {
       const msg = fmtTradeOpen({
         symbol,
@@ -333,7 +494,7 @@ export class LiveBot {
     }
   }
 
-  // ── Relatório diário ─────────────────────────────────────────
+  // Relatorio diario
 
   private async sendDailyReport(): Promise<void> {
     if (!this.cfg.telegram) return;
@@ -351,7 +512,7 @@ export class LiveBot {
     await sendTelegramMessage(this.cfg.telegram, msg);
   }
 
-  // ── Getters (para o dashboard via API) ──────────────────────
+  // Getters (para o dashboard via API)
 
   getBalance():    number           { return this.balance; }
   getCycleCount(): number           { return this.cycleCount; }
@@ -359,8 +520,7 @@ export class LiveBot {
   getOpenPositions(): string[]      { return [...this.openPositions.keys()]; }
 }
 
-// ── Helpers ──────────────────────────────────────────────────
-
+// Helpers
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }

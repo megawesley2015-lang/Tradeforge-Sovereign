@@ -85,7 +85,16 @@ async function loadBotConfig(): Promise<{
   strategyOverrides: Record<string, unknown>;
 }> {
   const fallback = {
-    assets:           ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'DOGEUSDT', 'AVAXUSDT', 'BNBUSDT', 'SPY', 'QQQ', 'NVDA', 'PETR4.SA', 'VALE3.SA', 'ITUB4.SA'],
+    assets: [
+      // ── Cripto (Binance Futures — opera em LIVE e PAPER) ──────────────────
+      'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT',
+      'XRPUSDT', 'ADAUSDT', 'DOGEUSDT', 'AVAXUSDT',
+      'DOTUSDT', 'LINKUSDT', 'LTCUSDT', 'MATICUSDT',
+      'ATOMUSDT', 'NEARUSDT', 'UNIUSDT',
+      // ── Ações (Yahoo Finance — apenas PAPER trading) ──────────────────────
+      // Descomente abaixo se quiser incluir ações no paper trading:
+      // 'SPY', 'QQQ', 'NVDA', 'PETR4.SA', 'VALE3.SA', 'ITUB4.SA',
+    ],
     interval:         BOT_INTERVAL_FALLBACK,
     riskPerTrade:     parseFloat(process.env.BOT_RISK_PER_TRADE ?? '0.02'),
     initialBalance:   1000,
